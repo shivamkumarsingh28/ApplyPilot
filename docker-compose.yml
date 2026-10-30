@@ -1,0 +1,80 @@
+# Start everything:           docker compose up --build
+# Add the Telegram bot:       docker compose --profile bot up --build
+# Add a local Llama model:    docker compose --profile local-llm up --build   (then: make pull-llama)
+name: applypilot
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: applypilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (run make setup)}
+      POSTGRES_DB: applypilot
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U applypilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: postgresql+psycopg://applypilot:${POSTGRES_PASSWORD}@db:5432/applypilot
+      STORAGE_DIR: /srv/data/files
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - file-data:/srv/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  bot:
+    profiles: ["bot"]
+    build: ./bot
+    env_file: .env
+    environment:
+      BACKEND_URL: http://backend:8000
+      BOT_DB_PATH: /srv/data/bot.db
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - bot-data:/srv/data
+    ports:
+      - "8100:8100"   # only used by the WhatsApp webhook
+
+  ollama:
+    profiles: ["local-llm"]
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  db-data:
+  file-data:
+  bot-data:
+  ollama-data:

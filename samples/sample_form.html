@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sample Defence Services - Application (FICTIONAL)</title></head>
+<body>
+<h1>Sample application form (for testing the extension)</h1>
+<form id="apply" onsubmit="return false">
+  <table>
+    <tr><td>Name of Candidate *</td><td><input name="cname" type="text"></td></tr>
+    <tr><td>Father's Name</td><td><input name="fname" type="text"></td></tr>
+    <tr><td>Date of Birth</td><td><input name="dob" type="text" placeholder="DD/MM/YYYY"></td></tr>
+    <tr><td>Gender</td><td>
+      <label><input type="radio" name="gender" value="M"> Male</label>
+      <label><input type="radio" name="gender" value="F"> Female</label></td></tr>
+    <tr><td>Category</td><td><select name="cat"><option value="">--Select--</option><option value="gen">General</option><option value="obc">OBC</option><option value="sc">SC</option><option value="st">ST</option></select></td></tr>
+    <tr><td>State</td><td><select name="state"><option value="">--Select--</option><option value="BR">Bihar</option><option value="UP">Uttar Pradesh</option><option value="DL">Delhi</option></select></td></tr>
+    <tr><td>Mobile No.</td><td><input name="mob" type="tel"></td></tr>
+    <tr><td>Email ID</td><td><input name="mail" type="email"></td></tr>
+    <tr><td>Captcha</td><td><input name="captcha" type="text"></td></tr>
+    <tr><td>Password</td><td><input name="pw" type="password"></td></tr>
+  </table>
+  <label><input type="checkbox" name="agree"> I declare the information is true</label>
+  <button type="submit">Submit</button>
+</form>
+</body>
+</html>

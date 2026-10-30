@@ -1,0 +1,120 @@
+"""ORM models.
+
+Sensitive profile data is stored encrypted (`Profile.data_enc`). Uploaded files
+are encrypted on disk (see services/storage.py); the database only holds metadata.
+"""
+
+from datetime import UTC, date, datetime
+
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    full_name: Mapped[str] = mapped_column(String(255), default="")
+    role: Mapped[str] = mapped_column(String(20), default="user")  # user | admin
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+
+class Profile(Base):
+    __tablename__ = "profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
+    data_enc: Mapped[str] = mapped_column(Text, default="")  # Fernet(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    user: Mapped[User] = relationship(back_populates="profile")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(50), default="other")
+    filename: Mapped[str] = mapped_column(String(255))
+    mime: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    storage_path: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Notice(Base):
+    __tablename__ = "notices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    source_filename: Mapped[str] = mapped_column(String(255), default="")
+    raw_text: Mapped[str] = mapped_column(Text, default="")
+    structured: Mapped[dict] = mapped_column(JSON, default=dict)
+    scam_report: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    chunks: Mapped[list["NoticeChunk"]] = relationship(back_populates="notice", cascade="all, delete-orphan")
+
+
+class NoticeChunk(Base):
+    __tablename__ = "notice_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("notices.id"), index=True)
+    page: Mapped[int] = mapped_column(Integer, default=1)
+    idx: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list] = mapped_column(JSON, default=list)
+
+    notice: Mapped[Notice] = relationship(back_populates="chunks")
+
+
+class Application(Base):
+    __tablename__ = "applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    notice_id: Mapped[int | None] = mapped_column(ForeignKey("notices.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(30), default="planned")  # planned|in_progress|submitted|closed
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class BotLink(Base):
+    """Links a chat account (Telegram) to a user via a short-lived one-time code."""
+
+    __tablename__ = "bot_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class AuditLog(Base):
+    """Security-relevant events. Stores metadata only, never document or profile contents."""
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(60), index=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

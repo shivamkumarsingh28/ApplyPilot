@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "ApplyPilot Autofill",
+  "version": "0.1.0",
+  "description": "Fill job and admission forms from your ApplyPilot profile. You review every field before anything is filled.",
+  "action": { "default_popup": "popup.html", "default_title": "ApplyPilot" },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "minimum_chrome_version": "110"
+}

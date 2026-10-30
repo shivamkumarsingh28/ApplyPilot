@@ -1,0 +1,12 @@
+{
+  "name": "applypilot-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/scanner.test.js",
+    "check": "node --check popup.js && node --check content.js && node --check lib/fieldScanner.js && node --check lib/filler.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

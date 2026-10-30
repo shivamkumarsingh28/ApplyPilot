@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ApplyPilot</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><strong>ApplyPilot</strong> <button id="logout" class="link" hidden>Sign out</button></header>
+
+  <section id="login" hidden>
+    <label>API address <input id="api" value="http://localhost:8000/api/v1"></label>
+    <label>Email <input id="email" type="email" autocomplete="username"></label>
+    <label>Password <input id="password" type="password" autocomplete="current-password"></label>
+    <button id="signin">Sign in</button>
+    <p id="login-error" class="error" role="alert"></p>
+  </section>
+
+  <section id="main" hidden>
+    <button id="scan">Scan this page</button>
+    <p id="status" class="muted"></p>
+    <ul id="rows"></ul>
+    <button id="fill" hidden>Fill selected fields</button>
+    <p class="muted small">Nothing is submitted. Review the page before you send the form.</p>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+body { width: 360px; margin: 0; padding: 12px; font: 13px system-ui, sans-serif; color: #1b1f2a; }
+header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+label { display: block; margin: 6px 0; color: #667085; }
+input[type=text], input[type=email], input[type=password], input:not([type]) { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #d5d9e2; border-radius: 6px; }
+button { background: #2f5bea; color: #fff; border: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 6px; }
+button.link { background: none; color: #667085; width: auto; margin: 0; }
+button.small { width: auto; background: #eef1f8; color: #1b1f2a; padding: 2px 8px; margin: 0; }
+ul { list-style: none; padding: 0; margin: 8px 0; max-height: 300px; overflow: auto; }
+li { padding: 6px 0; border-bottom: 1px solid #eceff5; }
+li input[type=text] { width: 100%; box-sizing: border-box; margin-top: 3px; padding: 4px; border: 1px solid #d5d9e2; border-radius: 4px; }
+.muted { color: #667085; } .small { font-size: 11px; } .error { color: #b42318; }
+.review { border-left: 3px solid #e0a100; padding-left: 6px; }
+.skip { color: #98a2b3; }
