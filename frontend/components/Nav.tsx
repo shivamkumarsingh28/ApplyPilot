@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { auth } from "@/lib/api";
+import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
   ["/", "Home"], ["/assistant", "Assistant"], ["/notices", "Notices"], ["/photo", "Photo studio"],
@@ -19,6 +20,7 @@ export default function Nav() {
           <Link key={href} href={href} className={path === href || (href !== "/" && path.startsWith(href)) ? "active" : ""}>{label}</Link>
         ))}
       </nav>
+      <ThemeToggle />
       <button className="link" onClick={() => { auth.clear(); router.push("/login"); }}>Sign out</button>
     </header>
   );

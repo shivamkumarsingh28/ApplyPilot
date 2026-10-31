@@ -1,7 +1,28 @@
-"""Bot settings, read from environment variables."""
+"""Bot settings, read from environment variables / the repo-root `.env`.
+
+Secrets must never be hard-coded here. Local runs read the same repo-root `.env`
+as the backend (resolved relative to this file, so the launch folder does not
+matter); deployed runs inject real environment variables, which always win.
+"""
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+
+def _load_dotenv() -> None:
+    env_file = Path(__file__).resolve().parents[2] / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
 
 
 @dataclass(frozen=True)

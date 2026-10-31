@@ -26,7 +26,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        allow_origin_regex=r"chrome-extension://.*",  # the browser extension calls the API directly
+        # Local dev runs the web app on varying ports (3000/3001/3011...); production is locked to cors_origins.
+        allow_origin_regex=(r"chrome-extension://.*|https?://(localhost|127\.0\.0\.1)(:\d+)?"
+                            if settings.app_env != "production" else r"chrome-extension://.*"),
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],

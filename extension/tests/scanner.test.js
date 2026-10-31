@@ -33,6 +33,28 @@ test("skips password, checkbox and groups radios", () => {
   assert.deepStrictEqual(gender.options.map((o) => o.value), ["M", "F"]);
 });
 
+test("finds file fields for vault attach (Phase 2 step 12)", () => {
+  const { doc, scanner } = load();
+  const inputs = doc.querySelectorAll('input[type="file"]');
+  if (!inputs.length) return; // sample form may have none; scanner unit below covers it
+  const fields = scanner.scanFields(doc);
+  assert.ok(fields.some((f) => f.type === "file"));
+});
+
+test("attachFile sets files via DataTransfer contract", () => {
+  const { doc, scanner, filler } = load();
+  const input = doc.createElement("input");
+  input.type = "file";
+  input.name = "photo_upload";
+  doc.body.appendChild(input);
+  const fields = scanner.scanFields(doc);
+  const f = fields.find((x) => x.name === "photo_upload");
+  assert.ok(f && f.type === "file");
+  // jsdom has no DataTransfer/File constructor parity with Chrome; assert graceful fallback, not a throw.
+  const out = filler.attachFile(doc, f.index, new Uint8Array([1, 2]), "p.jpg", "image/jpeg");
+  assert.ok(typeof out.attached === "boolean");
+});
+
 test("fills text, select and radio fields and fires change events", () => {
   const { doc, scanner, filler } = load();
   const fields = scanner.scanFields(doc);

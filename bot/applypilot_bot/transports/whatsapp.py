@@ -66,6 +66,15 @@ class WhatsAppTransport:
         elif msg.get("type") == "image":
             image = self._download(msg["image"]["id"])
             self.deliver(sender, self.core.handle_image(sender, image, msg["image"].get("caption", "")))
+        elif msg.get("type") == "document":
+            doc = msg["document"]
+            data = self._download(doc["id"])
+            replies = self.core.handle_document(sender, data, doc.get("filename", "notice.pdf"),
+                                                doc.get("mime_type", ""), doc.get("caption", ""))
+            self.deliver(sender, replies)
+            done = self.core.poll_job(sender)
+            if done:
+                self.deliver(sender, done)
 
     def build_app(self) -> FastAPI:
         app = FastAPI(title="ApplyPilot WhatsApp webhook")

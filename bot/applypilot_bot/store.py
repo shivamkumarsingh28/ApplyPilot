@@ -12,6 +12,19 @@ class Store:
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("CREATE TABLE IF NOT EXISTS links (chat_id TEXT PRIMARY KEY, token TEXT NOT NULL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS reminders (chat_id TEXT, app_id INTEGER, sent_on TEXT, PRIMARY KEY (chat_id, app_id, sent_on))")
+        self.db.execute("CREATE TABLE IF NOT EXISTS state (chat_id TEXT, key TEXT, value TEXT, PRIMARY KEY (chat_id, key))")
+        self.db.commit()
+
+    def set_state(self, chat_id: str, key: str, value: str) -> None:
+        self.db.execute("INSERT OR REPLACE INTO state VALUES (?, ?, ?)", (chat_id, key, value))
+        self.db.commit()
+
+    def get_state(self, chat_id: str, key: str) -> str | None:
+        row = self.db.execute("SELECT value FROM state WHERE chat_id=? AND key=?", (chat_id, key)).fetchone()
+        return row[0] if row else None
+
+    def clear_state(self, chat_id: str, key: str) -> None:
+        self.db.execute("DELETE FROM state WHERE chat_id=? AND key=?", (chat_id, key))
         self.db.commit()
 
     def link(self, chat_id: str, token: str) -> None:

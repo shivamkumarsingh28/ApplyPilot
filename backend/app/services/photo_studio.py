@@ -20,9 +20,15 @@ import cv2
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
+from app.services.colours import parse_colour
 from app.services.segmenter import get_segmenter
 
 BACKGROUNDS = {"white": (255, 255, 255), "light blue": (173, 216, 230), "blue": (70, 130, 200), "grey": (200, 200, 200), "gray": (200, 200, 200)}
+
+
+def background_rgb(name: str | None) -> tuple[int, int, int]:
+    parsed = parse_colour(name)
+    return parsed[0] if parsed else BACKGROUNDS.get((name or "white").lower(), (255, 255, 255))
 MAX_INPUT_SIDE = 1800
 
 
@@ -193,7 +199,7 @@ def process_photo(data: bytes, spec_dict: dict | None) -> tuple[bytes, dict]:
     segmenter = get_segmenter()
     mask = segmenter.foreground_mask(cropped, hint, "person")
     mask_img = Image.fromarray(mask).filter(ImageFilter.GaussianBlur(1.5))
-    bg = Image.new("RGB", cropped.size, BACKGROUNDS.get(spec.background, (255, 255, 255)))
+    bg = Image.new("RGB", cropped.size, background_rgb(spec.background))
     composed = Image.composite(cropped, bg, mask_img)
     checks.append({"name": "Background", "ok": True, "detail": f"Set to {spec.background} ({getattr(segmenter, 'last_used', segmenter.name)})"})
 

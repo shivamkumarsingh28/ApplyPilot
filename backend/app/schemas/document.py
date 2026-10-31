@@ -13,3 +13,8 @@ class DocumentOut(BaseModel):
     mime: str
     size: int
     created_at: datetime
+    is_original: bool = True
+    original_id: int | None = None
+    application_id: int | None = None
+    notice_id: int | None = None
+    app_ref: str = ""

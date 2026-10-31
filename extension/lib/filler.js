@@ -46,7 +46,24 @@
     return { filled, missing };
   }
 
-  const api = { fillFields, setNativeValue };
+  /** Attach bytes to a file input via DataTransfer and fire change (plan 4.7 step 4). */
+  function attachFile(doc, index, bytes, filename, mime) {
+    const el = doc.querySelector("[" + ATTR + '="' + index + '"]');
+    if (!el || el.type !== "file") return { attached: false, reason: "field-not-found" };
+    try {
+      const file = new doc.defaultView.File([bytes], filename, { type: mime });
+      const dt = new doc.defaultView.DataTransfer();
+      dt.items.add(file);
+      el.files = dt.files;
+      el.dispatchEvent(new doc.defaultView.Event("input", { bubbles: true }));
+      el.dispatchEvent(new doc.defaultView.Event("change", { bubbles: true }));
+      return { attached: true };
+    } catch (e) {
+      return { attached: false, reason: String(e && e.message || e) };
+    }
+  }
+
+  const api = { fillFields, setNativeValue, attachFile };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ApplyPilotFiller = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -63,7 +63,8 @@ async function scan() {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["lib/fieldScanner.js", "lib/filler.js", "content.js"] });
     const { fields } = await chrome.tabs.sendMessage(tab.id, { type: "applypilot:scan" });
     if (!fields.length) { $("status").textContent = "No fillable fields found on this page."; return; }
-    const result = await call("/forms/map", { fields });
+    await loadVault(fields.filter((f) => f.type === "file"));
+    const result = await call("/forms/map", { fields: fields.filter((f) => f.type !== "file") });
     state.fields = fields; state.mappings = result.mappings;
     $("status").textContent = result.summary.filled + " of " + result.summary.total + " fields ready. " + result.summary.needs_review + " need a look.";
     renderRows();
@@ -92,6 +93,43 @@ function renderRows() {
     ul.appendChild(li);
   });
   $("fill").hidden = false;
+}
+
+async function loadVault(fileFields) {
+  const ul = $("vault");
+  ul.innerHTML = "";
+  if (!fileFields.length) { ul.innerHTML = "<li class='muted'>No file fields on this page.</li>"; return; }
+  const res = await fetch(state.api + "/documents", { headers: { Authorization: "Bearer " + state.token } });
+  if (!res.ok) return;
+  const docs = await res.json();
+  for (const field of fileFields) {
+    for (const d of docs) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.textContent = `${field.label || "file"} ← ${d.filename} (${d.kind})`;
+      btn.addEventListener("click", () => attach(field, d));
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+  }
+}
+
+async function attach(field, docRow) {
+  $("status").textContent = "Attaching " + docRow.filename + "...";
+  try {
+    const res = await fetch(state.api + "/documents/" + docRow.id + "/download", { headers: { Authorization: "Bearer " + state.token } });
+    if (!res.ok) throw new Error("Download failed");
+    const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
+    const tab = await activeTab();
+    const out = await chrome.tabs.sendMessage(tab.id, { type: "applypilot:attach", index: field.index, bytes, filename: docRow.filename, mime: docRow.mime });
+    if (out && out.attached) { $("status").textContent = "Attached " + docRow.filename + ". Review it on the page."; return; }
+    // Fallback (plan 4.7): some sites block script attachment — save to downloads instead.
+    const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: docRow.mime }));
+    const a = document.createElement("a");
+    a.href = blobUrl; a.download = docRow.filename; a.click();
+    URL.revokeObjectURL(blobUrl);
+    $("status").textContent = "This site blocked automatic attach. Please attach this file yourself: it is in your downloads now.";
+  } catch (e) { $("status").textContent = "Error: " + e.message; }
 }
 
 async function fill() {

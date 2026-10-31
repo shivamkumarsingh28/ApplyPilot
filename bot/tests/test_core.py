@@ -36,6 +36,19 @@ def fake_backend(calls):
         if path == "/photo/process":
             return httpx.Response(200, json={"filename": "photo_ready.jpg", "mime": "image/jpeg", "data_base64": base64.b64encode(b"READY").decode(),
                                              "report": {"ok": True, "warnings": [], "checks": [{"name": "Size in pixels", "ok": True, "detail": "200x230"}]}})
+        if path == "/jobs/ingest":
+            return httpx.Response(202, json={"job_id": 9, "status": "queued"})
+        if path == "/jobs/9":
+            return httpx.Response(200, json={"id": 9, "status": "ready", "notice_id": 3, "title": "Army post",
+                                             "summary": ["Last date: 2026-11-14"], "timings": {}, "error": ""})
+        if path == "/profile":
+            if request.method == "PUT":
+                return httpx.Response(200, json={"dob": json.loads(request.content).get("dob")})
+            return httpx.Response(200, json={"full_name": "Asha"})
+        if path == "/notices/3/eligibility":
+            return httpx.Response(200, json={"verdict": "needs_info", "checks": [], "missing_profile_fields": ["dob"]})
+        if path == "/notices/4/eligibility":
+            return httpx.Response(200, json={"verdict": "eligible", "checks": [{"rule": "Age", "detail": "20 years on 2026-10-01"}], "missing_profile_fields": []})
         return httpx.Response(404, json={"detail": "nope"})
 
     return handler
@@ -75,8 +88,38 @@ def test_expired_token_unlinks(core):
 
 def test_image_with_caption_returns_file(core):
     core.handle_text("1", "/link GOOD1234")
-    replies = core.handle_image("1", PNG, "photo 3")
-    assert "ready" in replies[0].text.lower() and replies[1].file == (b"READY", "photo_ready.jpg", "image/jpeg")
+    replies = core.handle_image("1", PNG, "photo 3 light blue")
+    assert "preview" in replies[0].text.lower() and replies[1].file == (b"READY", "photo_ready.jpg", "image/jpeg")
+    confirm = core.handle_text("1", "yes")
+    assert "saved to your vault" in confirm[0].text.lower() and confirm[1].file[0] == b"READY"
+
+
+def test_document_ingest_flow(core):
+    core.handle_text("1", "/link GOOD1234")
+    ack = core.handle_document("1", b"%PDF-fake", "notice.pdf", "application/pdf")
+    assert "reading your notice" in ack[0].text
+    done = core.poll_job("1")
+    assert "ready" in done[0].text and "Last date" in done[0].text
+    assert core.store.get_state("1", "notice_id") == "3"
+    big = core.handle_document("1", b"x" * (5 * 1024 * 1024 + 1), "big.pdf", "application/pdf")
+    assert "5 MB" in big[0].text
+
+
+def test_dob_prompt_and_save(core):
+    core.handle_text("1", "/link GOOD1234")
+    core.store.set_state("1", "notice_id", "3")
+    ask = core.handle_text("1", "/eligible")
+    assert "date of birth" in ask[0].text.lower()
+    saved = core.handle_text("1", "05/08/2004")
+    assert "saved" in saved[0].text.lower()
+    assert core.store.get_state("1", "awaiting_dob") is None
+
+
+def test_split_text():
+    from applypilot_bot.core import split_text
+
+    parts = split_text("A. " * 400)
+    assert len(parts) > 1 and all(len(p) <= 1100 for p in parts)
 
 
 def test_image_without_caption_asks_which_notice(core):
@@ -93,6 +136,8 @@ def test_reminders_sent_once_per_day(core):
 
 def test_parse_telegram_updates():
     assert parse_update({"message": {"chat": {"id": 5}, "text": "hi"}}).text == "hi"
+    pdf = parse_update({"message": {"chat": {"id": 5}, "document": {"file_id": "d1", "file_name": "n.pdf", "mime_type": "application/pdf"}}})
+    assert pdf.is_document and pdf.filename == "n.pdf"
     photo = parse_update({"message": {"chat": {"id": 5}, "photo": [{"file_id": "small"}, {"file_id": "big"}], "caption": "photo 3"}})
     assert photo.file_id == "big" and photo.caption == "photo 3"
     assert parse_update({"message": {"chat": {"id": 5}, "sticker": {}}}) is None

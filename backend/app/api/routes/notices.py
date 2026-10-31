@@ -1,5 +1,3 @@
-from datetime import date
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -12,12 +10,11 @@ from app.schemas.notice import AskIn, AskOut, NoticeListItem, NoticeOut
 from app.services import rag
 from app.services.audit import audit
 from app.services.eligibility import evaluate
-from app.services.extraction import extract_structured
-from app.services.guardrails import check_question, looks_like_injection
+from app.services.guardrails import check_question
+from app.services.notice_service import build_notice
 from app.services.pdf_text import extract_pages
 from app.services.profile_store import load_profile
 from app.services.readiness import readiness
-from app.services.scam_check import scam_check
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 MAX_BYTES = 15 * 1024 * 1024
@@ -50,26 +47,9 @@ async def create_notice(
         pages = extract_pages(data, filename, file.content_type or "")
     else:
         pages = [p.strip() for p in text.split("\f") if p.strip()]
-    raw = "\f".join(pages)
-    if len(raw.strip()) < 40:
+    if len("\f".join(pages).strip()) < 40:
         raise HTTPException(422, "Could not read enough text from this notice")
-
-    structured = extract_structured(raw)
-    scam = scam_check(raw)
-    if looks_like_injection(raw):
-        scam["reasons"].append("The document contains text that tries to give orders to an AI tool.")
-        scam["score"] = min(100, scam["score"] + 25)
-        scam["level"] = "medium" if scam["score"] < 55 else "high"
-    notice = Notice(user_id=user.id, title=(title.strip() or structured["title"])[:255], source_filename=filename,
-                    raw_text=raw, structured=structured, scam_report=scam)
-    db.add(notice)
-    db.flush()
-    rag.ingest(db, notice, pages)
-    if add_to_tracker:
-        deadline = date.fromisoformat(structured["last_date"]) if structured.get("last_date") else None
-        db.add(Application(user_id=user.id, notice_id=notice.id, title=notice.title, deadline=deadline))
-    db.commit()
-    return to_out(notice)
+    return to_out(build_notice(db, user, pages, filename, title, add_to_tracker))
 
 
 @router.get("", response_model=list[NoticeListItem])

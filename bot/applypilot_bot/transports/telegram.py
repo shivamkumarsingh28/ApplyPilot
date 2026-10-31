@@ -20,6 +20,9 @@ class Incoming:
     text: str = ""
     file_id: str | None = None
     caption: str = ""
+    filename: str = ""
+    mime: str = ""
+    is_document: bool = False
 
 
 def parse_update(update: dict) -> Incoming | None:
@@ -31,8 +34,11 @@ def parse_update(update: dict) -> Incoming | None:
     if msg.get("photo"):
         return Incoming(chat_id, file_id=msg["photo"][-1]["file_id"], caption=msg.get("caption", ""))  # largest size
     doc = msg.get("document") or {}
-    if str(doc.get("mime_type", "")).startswith("image/"):
-        return Incoming(chat_id, file_id=doc["file_id"], caption=msg.get("caption", ""))
+    if doc.get("file_id"):
+        mime = str(doc.get("mime_type", ""))
+        return Incoming(chat_id, file_id=doc["file_id"], caption=msg.get("caption", ""),
+                        filename=doc.get("file_name", "notice"), mime=mime,
+                        is_document=not mime.startswith("image/"))
     if msg.get("text"):
         return Incoming(chat_id, text=msg["text"])
     return None
@@ -69,7 +75,18 @@ class TelegramTransport:
         inc = parse_update(update)
         if inc is None:
             return
-        if inc.file_id:
+        if inc.file_id and inc.is_document:
+            replies = self.core.handle_document(inc.chat_id, self._download(inc.file_id), inc.filename, inc.mime, inc.caption)
+            self.deliver(inc.chat_id, replies)
+            import time as _time
+
+            for _ in range(30):  # background ingest: poll briefly, then notify when ready
+                _time.sleep(2)
+                done = self.core.poll_job(inc.chat_id)
+                if done and ("ready" in done[0].text or "could not read" in done[0].text):
+                    self.deliver(inc.chat_id, done)
+                    break
+        elif inc.file_id:
             self.deliver(inc.chat_id, self.core.handle_image(inc.chat_id, self._download(inc.file_id), inc.caption))
         else:
             self.deliver(inc.chat_id, self.core.handle_text(inc.chat_id, inc.text))

@@ -51,6 +51,11 @@ class Document(Base):
     mime: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
     size: Mapped[int] = mapped_column(Integer, default=0)
     storage_path: Mapped[str] = mapped_column(String(500))
+    is_original: Mapped[bool] = mapped_column(Boolean, default=True)
+    original_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id"), nullable=True)
+    notice_id: Mapped[int | None] = mapped_column(ForeignKey("notices.id"), nullable=True)
+    app_ref: Mapped[str] = mapped_column(String(20), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -105,6 +110,46 @@ class BotLink(Base):
     code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
     chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class IngestJob(Base):
+    """Background notice-ingest job (Phase 2 step 1). DB-backed queue, no Redis needed yet."""
+
+    __tablename__ = "ingest_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    notice_id: Mapped[int | None] = mapped_column(ForeignKey("notices.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(20), default="web")  # web | bot | search
+    timings: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class AnswerCache(Base):
+    """(notice, normalised question) -> answer. Repeat questions cost nothing."""
+
+    __tablename__ = "answer_cache"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("notices.id"), index=True)
+    question_key: Mapped[str] = mapped_column(String(64), index=True)
+    question: Mapped[str] = mapped_column(Text, default="")
+    answer: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class OAuthAccount(Base):
+    __tablename__ = "oauth_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(30), index=True)
+    provider_subject: Mapped[str] = mapped_column(String(255), index=True)
+    email: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

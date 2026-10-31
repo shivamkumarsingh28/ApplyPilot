@@ -29,10 +29,40 @@ def get_engine():
 
 
 def init_db() -> None:
-    """Create tables. Production deployments should use migrations (see docs/DEPLOYMENT.md)."""
+    """Create tables and apply small additive migrations for existing local DBs.
+
+    `create_all` only creates missing tables; it does not add columns to a table
+    created by an older version. Phase 2 added vault columns to `documents`, so
+    an existing DB otherwise fails at insert time with "no column named ...".
+    These ALTERs are idempotent and keep user data intact. Larger production
+    deployments should still use Alembic-style migrations.
+    """
+    from sqlalchemy import text
+
     from app.db import models  # noqa: F401  (registers models on Base.metadata)
 
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    wanted = {
+        "documents": {
+            "is_original": "BOOLEAN DEFAULT 1",
+            "original_id": "INTEGER",
+            "application_id": "INTEGER",
+            "notice_id": "INTEGER",
+            "app_ref": "VARCHAR(20) DEFAULT ''",
+        },
+    }
+    with engine.begin() as conn:
+        for table, columns in wanted.items():
+            if engine.dialect.name == "sqlite":
+                existing = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+            else:
+                rows = conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name=:t"), {"t": table})
+                existing = {r[0] for r in rows}
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def reset_engine() -> None:

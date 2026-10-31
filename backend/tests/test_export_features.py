@@ -23,7 +23,7 @@ def test_checklist_is_printable_and_owner_only(client, auth, sample_text):
 
 
 def test_calendar_has_three_reminders_per_deadline(client, auth, sample_text):
-    nid = _notice(client, auth, sample_text)
+    _notice(client, auth, sample_text)
     r = client.get(f"{API}/applications/calendar.ics", headers=auth)
     assert r.status_code == 200 and "text/calendar" in r.headers["content-type"]
     assert r.text.count("BEGIN:VEVENT") == 3
@@ -34,7 +34,7 @@ def test_calendar_has_three_reminders_per_deadline(client, auth, sample_text):
 
 
 def test_summary_combines_counts_and_time_saved(client, auth, sample_text):
-    nid = _notice(client, auth, sample_text)
+    _notice(client, auth, sample_text)
     r = client.get(f"{API}/applications/summary", headers=auth)
     assert r.status_code == 200
     s = r.json()

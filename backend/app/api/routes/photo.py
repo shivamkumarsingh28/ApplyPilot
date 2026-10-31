@@ -40,10 +40,20 @@ async def process(
         raise HTTPException(415, "Please upload a JPG, PNG or WebP image")
 
     spec: dict = {}
+    portal_background = None
     if notice_id is not None:
         notice = get_owned(db, Notice, notice_id, user)
         spec = dict((notice.structured or {}).get("photo_spec" if kind == "photo" else "signature_spec") or {})
-    overrides = {"width": width, "height": height, "min_kb": min_kb, "max_kb": max_kb, "format": format, "background": background}
+        portal_background = spec.get("background")
+    from app.services.colours import resolve_background
+
+    if background:
+        rgb, label, overridden = resolve_background(background, portal_background)
+        spec["background"] = label
+        spec["_bg_rgb"] = list(rgb)
+        spec["_bg_note"] = (f"The notice requires {portal_background} background, so your choice was not used."
+                            if overridden else f"Background: {label}")
+    overrides = {"width": width, "height": height, "min_kb": min_kb, "max_kb": max_kb, "format": format}
     spec.update({k: v for k, v in overrides.items() if v not in (None, "")})
 
     try:
@@ -51,11 +61,20 @@ async def process(
     except Exception as exc:  # unreadable or corrupt image
         raise HTTPException(422, f"Could not process this image: {exc}") from exc
 
+    if spec.get("_bg_note"):
+        report.setdefault("warnings", []).insert(0, spec["_bg_note"])
     fmt = "png" if (spec.get("format") == "png") else "jpg"
     mime = "image/png" if fmt == "png" else "image/jpeg"
     filename = f"{kind}_ready.{fmt}"
     doc_id = None
+    app_ref = ""
     if save_to_vault:
-        doc_id = store_document(db, user, out, filename, mime, kind).id
+        from app.api.routes.documents import app_ref_for
+
+        app_id, app_ref = app_ref_for(db, user, notice_id)
+        doc = store_document(db, user, out, filename, mime, kind, is_original=False,
+                             application_id=app_id, notice_id=notice_id, app_ref=app_ref)
+        doc_id = doc.id
+    clean_spec = {k: v for k, v in spec.items() if not k.startswith("_")}
     return {"filename": filename, "mime": mime, "data_base64": base64.b64encode(out).decode(), "report": report,
-            "spec": spec, "document_id": doc_id}
+            "spec": clean_spec, "document_id": doc_id, "app_ref": app_ref}

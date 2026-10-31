@@ -9,7 +9,7 @@
 (function (root) {
   "use strict";
 
-  const SKIP_TYPES = new Set(["hidden", "submit", "button", "image", "reset", "file", "password"]);
+  const SKIP_TYPES = new Set(["hidden", "submit", "button", "image", "reset", "password"]);
   const ATTR = "data-applypilot-idx";
 
   function clean(text) {
@@ -69,7 +69,15 @@
     for (const el of controls) {
       const tag = el.tagName.toLowerCase();
       const type = tag === "select" ? "select" : tag === "textarea" ? "textarea" : (el.getAttribute("type") || "text").toLowerCase();
-      if (SKIP_TYPES.has(type) || el.disabled || el.readOnly || !isVisible(el)) continue;
+      if (SKIP_TYPES.has(type) || el.disabled || !isVisible(el)) continue;
+      if (type === "file") {
+        const desc = { index: index++, id: el.id || el.name || "file-" + index, name: el.name || "", label: labelFor(el),
+          placeholder: "", type: "file", autocomplete: "", pattern: "", options: [], accept: el.getAttribute("accept") || "" };
+        el.setAttribute(ATTR, String(desc.index));
+        out.push(desc);
+        continue;
+      }
+      if (el.readOnly) continue;
 
       if (type === "radio") {
         const key = el.name || el.id;

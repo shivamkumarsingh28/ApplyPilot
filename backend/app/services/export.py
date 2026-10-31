@@ -11,7 +11,7 @@ import html
 from datetime import date, datetime, time, timedelta
 
 from app.services.eligibility import QUAL_LABEL
-from app.services.readiness import LABELS
+from app.services.readiness import LABELS  # noqa: F401  (re-exported for route modules)
 
 
 def _h(v) -> str:

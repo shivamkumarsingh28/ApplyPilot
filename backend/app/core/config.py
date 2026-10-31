@@ -1,37 +1,46 @@
 """Application settings.
 
 All configuration comes from environment variables (or a local `.env` file).
-Nothing is hard-coded, so the same container image runs in development,
-CI and production. See `.env.example` for the full list with explanations.
+No credential is hard-coded: every secret field defaults to empty (or a clearly
+labelled dev placeholder) and the real value must come from `.env`/the process
+environment. The same container image runs in development, CI and production.
+See `.env.example` for the full list with explanations.
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# .env lives at the repo root and the documented run command cds into backend/,
+# so resolve it relative to this file — otherwise settings silently fall back
+# to defaults (wrong SAM endpoint, mock-looking config).
+_REPO_ENV = Path(__file__).resolve().parents[3] / ".env"
+_LOCAL_ENV = Path(__file__).resolve().parents[2] / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_REPO_ENV if _REPO_ENV.exists() else _LOCAL_ENV), extra="ignore")
 
     # Core
     app_env: str = "development"
     secret_key: str = "dev-secret-change-me"
-    encryption_key: str = "NJcJu1CMBBFqjYrjKFb-U9ur7V9VcX3v8WuZ0HDAOek="  # Fernet key; derived from secret_key in dev if empty
-    database_url: str = "sqlite:///./data/applypilot.db"
+    encryption_key: str = ""  # Fernet key; derived from secret_key in dev if empty
+    database_url: str = ""
     storage_dir: str = "./data/files"
     cors_origins: str = "http://localhost:3000"
     access_token_minutes: int = 60 * 24 * 7
 
     # Language model provider: mock | llama_local | meta | openai_compat
-    #   mock          offline, no model (tests, quick demo)
+    #   mock          offline, no model (tests, quick demo, safe default)
     #   llama_local   a Meta Llama model running on your own machine through Ollama (free, for development)
     #   meta          Meta Model API, Muse Spark (production)
     #   openai_compat any OpenAI-compatible server (OpenAI itself, Baseten, Fireworks, Modal, vLLM)
-    llm_provider: str = "meta"
+    llm_provider: str = "mock"
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = "llama3.2"
     ollama_vision_model: str = ""  # e.g. llama3.2-vision, needed only to read scanned notices
-    meta_api_key: str = "LLM_2277558179454695_hq6rEMGda1I1v-e8f5joKqu6v3Q"
+    meta_api_key: str = ""
     meta_api_base: str = "https://api.meta.ai/v1"
     meta_model: str = "muse-spark-1.3"
     openai_compat_base: str = ""
@@ -39,13 +48,13 @@ class Settings(BaseSettings):
     openai_compat_model: str = ""
 
     # Embeddings: hash (offline) | api
-    embedding_provider: str = "api"
-    embedding_model: str = "nomic-embed-text"
+    embedding_provider: str = "hash"
+    embedding_model: str = ""
 
     # Segmentation: opencv (offline) | meta_sam
-    segmenter: str = "meta_sam"
-    sam_endpoint: str = "https://api.meta.ai/v1"
-    sam_api_key: str = "LLM_2277558179454695_hq6rEMGda1I1v-e8f5joKqu6v3Q"
+    segmenter: str = "opencv"
+    sam_endpoint: str = ""
+    sam_api_key: str = ""
 
     # Security
     admin_emails: str = ""  # comma-separated; these emails get the admin role when they register
@@ -55,6 +64,40 @@ class Settings(BaseSettings):
 
     # Bot
     bot_shared_secret: str = "change-me-bot-secret"
+
+    # Phase 2: vault quotas (plan 4.4 starting point, change via env)
+    vault_max_file_mb: int = 5
+    vault_max_total_mb: int = 50
+
+    # Phase 2: OAuth (plan 3.6). Providers with no credentials stay disabled.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    linkedin_client_id: str = ""
+    linkedin_client_secret: str = ""
+    oauth_redirect_base: str = "http://localhost:8000"
+
+    # Phase 2: web search (plan 3.7). Never Google Custom Search (sunset 2027-01-01).
+    search_provider: str = ""  # brave | tavily (empty = search disabled)
+    brave_api_key: str = ""
+    tavily_api_key: str = ""
+    search_allowed_domains: str = "gov.in,nic.in,ssc.gov.in,upsc.gov.in,ibps.in"
+
+    @property
+    def oauth_providers(self) -> list[str]:
+        out = []
+        if self.google_client_id and self.google_client_secret:
+            out.append("google")
+        if self.github_client_id and self.github_client_secret:
+            out.append("github")
+        if self.linkedin_client_id and self.linkedin_client_secret:
+            out.append("linkedin")
+        return out
+
+    @property
+    def search_domain_list(self) -> list[str]:
+        return [d.strip().lower() for d in self.search_allowed_domains.split(",") if d.strip()]
 
     @property
     def admin_email_set(self) -> set[str]:
@@ -68,4 +111,15 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Cached settings accessor. Tests clear the cache after changing env vars."""
-    return Settings()
+    s = Settings()
+    if s.app_env == "production":
+        problems = []
+        if s.secret_key in ("", "dev-secret-change-me"):
+            problems.append("SECRET_KEY")
+        if not s.encryption_key:
+            problems.append("ENCRYPTION_KEY")
+        if s.bot_shared_secret in ("", "change-me-bot-secret"):
+            problems.append("BOT_SHARED_SECRET")
+        if problems:
+            raise RuntimeError("Production requires real values in .env for: " + ", ".join(problems))
+    return s

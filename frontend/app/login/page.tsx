@@ -1,7 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ErrorText } from "@/components/ui";
+import ThemeToggle from "@/components/ThemeToggle";
 import { api, auth } from "@/lib/api";
 
 export default function LoginPage() {
@@ -10,6 +11,8 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "", full_name: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [providers, setProviders] = useState<string[]>([]);
+  useEffect(() => { api.get<{ providers: string[] }>("/auth/providers").then((r) => setProviders(r.providers)).catch(() => {}); }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +32,9 @@ export default function LoginPage() {
 
   return (
     <form className="card login" onSubmit={submit}>
-      <h1>ApplyPilot</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1>ApplyPilot</h1><ThemeToggle />
+      </div>
       <p className="muted">Read notices, fix your photo and signature, and fill forms in one click.</p>
       {mode === "register" && (
         <p><label htmlFor="n">Full name</label><input id="n" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></p>
@@ -41,6 +46,13 @@ export default function LoginPage() {
       <button type="button" className="link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
         {mode === "login" ? "New here? Create an account" : "Have an account? Sign in"}
       </button>
+      {providers.length > 0 && (
+        <p className="muted">Or continue with{" "}
+          {providers.map((p) => (
+            <a key={p} href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/auth/oauth/${p}/start`}>{p} </a>
+          ))}
+        </p>
+      )}
     </form>
   );
 }

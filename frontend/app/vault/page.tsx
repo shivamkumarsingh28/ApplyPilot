@@ -23,6 +23,19 @@ function Vault() {
     catch (err) { setError(err instanceof Error ? err.message : "Upload failed"); }
   }
 
+  async function makeCopy(d: DocumentRow) {
+    try { await api.post(`/documents/${d.id}/copy`, {}); load(); } catch (e) { setError(e instanceof Error ? e.message : "Copy failed"); }
+  }
+
+  async function remove(d: DocumentRow) {
+    try { await api.del(`/documents/${d.id}`); load(); }
+    catch (e) {
+      if (confirm(`${e instanceof Error ? e.message : "Has copies."} Delete the original and its copies?`)) {
+        await api.del(`/documents/${d.id}?force=true`); load();
+      }
+    }
+  }
+
   async function download(d: DocumentRow) {
     const blob = await api.blob(`/documents/${d.id}/download`);
     const url = URL.createObjectURL(blob);
@@ -46,10 +59,13 @@ function Vault() {
       <Card title="Your documents">
         {docs.length === 0 ? <Empty>Nothing stored yet.</Empty> : (
           <table>
-            <thead><tr><th>Type</th><th>File</th><th>Size</th><th /></tr></thead>
+            <thead><tr><th>Type</th><th>File</th><th>Copy of / for</th><th>Size</th><th /></tr></thead>
             <tbody>{docs.map((d) => (
-              <tr key={d.id}><td>{d.kind.replace(/_/g, " ")}</td><td>{d.filename}</td><td>{(d.size / 1024).toFixed(0)} KB</td>
-                <td><button className="secondary" onClick={() => download(d)}>Download</button>{" "}<button className="danger" onClick={async () => { await api.del(`/documents/${d.id}`); load(); }}>Delete</button></td></tr>
+              <tr key={d.id}><td>{d.kind.replace(/_/g, " ")}</td><td>{d.filename}</td>
+                <td>{d.is_original ? "Original" : `Copy${d.app_ref ? ` · ${d.app_ref}` : ""}`}</td><td>{(d.size / 1024).toFixed(0)} KB</td>
+                <td><button className="secondary" onClick={() => download(d)}>Download</button>{" "}
+                  {d.is_original && <><button className="secondary" onClick={() => makeCopy(d)}>Make application copy</button>{" "}</>}
+                  <button className="danger" onClick={() => remove(d)}>Delete</button></td></tr>
             ))}</tbody>
           </table>
         )}
