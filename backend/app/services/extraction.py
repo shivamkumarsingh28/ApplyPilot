@@ -161,10 +161,65 @@ def _image_spec(text: str, keywords: list[str]) -> dict | None:
     return None
 
 
+_URL = re.compile(r"https?://[^\s<>()\[\]\"']+|www\.[^\s<>()\[\]\"']+", re.I)
+_OFFICIAL_HINTS = ("gov.in", "nic.in", ".gov", "ac.in", "edu", "official")
+
+
+def _evidence(text: str, keywords: list[str]) -> dict | None:
+    """Quote + 1-based page that support a fact. Pages are split on form feed."""
+    pages = text.split("\f")
+    for kw in keywords:
+        for i, page in enumerate(pages, start=1):
+            for line in page.splitlines():
+                if kw in line.lower() and line.strip():
+                    return {"quote": line.strip()[:300], "page": i}
+    return None
+
+
+def _doc_type(text: str) -> str:
+    low = text.lower()
+    if "scholarship" in low:
+        return "scholarship"
+    if re.search(r"\b(scheme|yojana|benefit|subsidy|pension)\b", low):
+        return "scheme"
+    # Recruitment wins over exam: a job notice's selection process mentions exams.
+    if "vacanc" in low or "recruitment" in low or "applications are invited" in low or re.search(r"invited for the post", low):
+        return "job"
+    if re.search(r"admission|entrance (exam|test)|\bcounselling\b", low):
+        return "admission"
+    if re.search(r"\b(exam|examination|test schedule|admit card)\b", low):
+        return "exam"
+    if "apply online" in low:
+        return "job"
+    return "other"
+
+
+def _classify_kind(doc_type: str, text: str) -> str:
+    low = text.lower()
+    if doc_type == "job":
+        return "government_job" if re.search(
+            r"gov\.in|nic\.in|government|ministry|commission|public sector|\bpsu\b|state govt|central govt", low) else "private_job"
+    return doc_type
+
+
+def _apply_link(text: str) -> str | None:
+    official, first = None, None
+    for m in _URL.finditer(text):
+        url = m.group(0).rstrip(".,;")
+        if not url.startswith("http"):
+            url = "https://" + url
+        first = first or url
+        if any(h in url.lower() for h in _OFFICIAL_HINTS):
+            official = url
+            break
+    return official or first
+
+
 def rule_extract(text: str) -> dict:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     low = text.lower()
     last = _find_date_after(text, ["last date", "closing date", "last day", "apply before", "deadline"])
+    start = _find_date_after(text, ["starting date", "start date", "opening date", "applications open", "apply from"])
     gender = None
     if re.search(r"only\s+(?:for\s+)?(?:female|women)", low):
         gender = "female"
@@ -175,15 +230,34 @@ def rule_extract(text: str) -> dict:
     for kw, label in STAGE_KEYWORDS:
         if kw in low and label not in stages:
             stages.append(label)
-    org = next((ln for ln in lines[:6] if re.search(r"board|commission|ministry|department|bank|university|army|navy|force|services", ln, re.I)), None)
+    org = next((ln for ln in lines[:6] if re.search(r"board|commission|ministry|department|bank|university|army|navy|force|services|company|college|institute", ln, re.I)), None)
+    title = next((ln for ln in lines if len(ln) >= 8 and not re.search(r"advertisement|advt\.?\s*no", ln, re.I)), lines[0] if lines else "Untitled notice")
+    vac = re.search(r"(?:total\s+)?(?:vacanc\w*|posts?|openings?|seats?)[^\d\n]{0,30}?([\d,]{1,7})\b", text, re.I)
+    sal = re.search(r"(?:salary|pay scale|stipend|monthly)[^.\n]{0,40}?(?:rs\.?|inr|₹)\s*([\d,]+)", text, re.I)
+    doc_type = _doc_type(text)
+    evidence = {}
+    for field, kws in (("title", [title.lower()[:30]]), ("last_date", ["last date", "closing date", "deadline"]),
+                       ("start_date", ["starting date", "start date", "opening date"]),
+                       ("age", ["age"]), ("qualification", ["qualification"]),
+                       ("gender", ["only for", "only female", "only male", "only women", "only men"])):
+        ev = _evidence(text, kws)
+        if ev:
+            evidence[field] = ev
     return {
-        "title": lines[0][:200] if lines else "Untitled notice",
+        "title": title[:200],
         "organisation": org,
+        "doc_type": doc_type,
+        "kind": _classify_kind(doc_type, text),
+        "start_date": start.isoformat() if start else None,
         "last_date": last.isoformat() if last else None,
         "age": _age_info(text),
         "qualification": _qualification(text),
         "fee": _fee(text),
         "gender": gender,
+        "vacancies": int(vac.group(1).replace(",", "")) if vac else None,
+        "salary": {"amount": int(sal.group(1).replace(",", "")), "currency": "INR"} if sal else None,
+        "apply_link": _apply_link(text),
+        "evidence": evidence,
         "documents": docs,
         "photo_spec": _image_spec(text, ["photograph", "photo "]),
         "signature_spec": _image_spec(text, ["signature specification", "signature:", "signature size", "signature must"]),
@@ -194,13 +268,18 @@ def rule_extract(text: str) -> dict:
 
 
 SCHEMA_HINT = {
-    "title": "string", "organisation": "string|null", "last_date": "YYYY-MM-DD|null",
+    "title": "string", "organisation": "string|null",
+    "doc_type": "job|scholarship|scheme|admission|exam|other",
+    "start_date": "YYYY-MM-DD|null", "last_date": "YYYY-MM-DD|null",
     "age": {"min": "number|null", "max": "number|null", "as_of": "YYYY-MM-DD|null",
             "relaxations": {"sc": "years", "st": "years", "obc": "years"}},
     "qualification": {"level": "below_10th|10th|12th|diploma|graduate|postgraduate|doctorate|null",
                       "min_percentage": "number|null", "text": "string"},
     "fee": {"amount": "number", "currency": "string"},
-    "gender": "male|female|null", "documents": ["photo|signature|marksheet_10|marksheet_12|degree|caste_certificate|domicile|id_proof|birth_certificate"],
+    "gender": "male|female|null", "vacancies": "number|null",
+    "salary": {"amount": "number", "currency": "string"},
+    "apply_link": "official apply URL string|null",
+    "documents": ["photo|signature|marksheet_10|marksheet_12|degree|caste_certificate|domicile|id_proof|birth_certificate"],
     "photo_spec": {"width": "px", "height": "px", "min_kb": "number|null", "max_kb": "number|null", "format": "jpg|png", "background": "string"},
     "signature_spec": "same shape as photo_spec or null", "selection_stages": ["string"],
 }
@@ -211,9 +290,12 @@ def llm_extract(text: str) -> dict | None:
     if llm.offline:
         return None
     prompt = (
-        "You extract facts from a recruitment or admission notice. Use ONLY the notice text. "
-        "If a field is not stated, use null. Never guess dates, ages or fees. "
-        f"Return one JSON object with exactly this shape: {json.dumps(SCHEMA_HINT)}\n\nNOTICE:\n{text[:120000]}"
+        "You extract facts from a document notice. It may be a government or private job, a scheme, "
+        "a scholarship, an admission or exam notice, or another official notice — do not assume it is a job. "
+        "Use ONLY the document text (pages are separated by form feeds). "
+        "If a field is not stated, use null. Never guess dates, ages, fees, vacancies or links. "
+        "apply_link must be a URL copied exactly from the text. "
+        f"Return one JSON object with exactly this shape: {json.dumps(SCHEMA_HINT)}\n\nDOCUMENT:\n{text[:120000]}"
     )
     try:
         raw = llm.chat([{"role": "user", "content": prompt}], json_mode=True, temperature=0.0, max_tokens=2000)
@@ -232,8 +314,9 @@ def merge(rules: dict, llm: dict | None) -> dict:
     if not llm:
         return rules
     out = dict(rules)
-    review: list[dict] = []
-    for key in ("organisation", "last_date", "gender", "fee", "photo_spec", "signature_spec"):
+    review: list[dict] = list(rules.get("needs_review") or [])
+    for key in ("organisation", "doc_type", "start_date", "last_date", "gender", "fee", "vacancies",
+                "salary", "apply_link", "photo_spec", "signature_spec"):
         a, b = rules.get(key), llm.get(key)
         if _empty(a) and not _empty(b):
             out[key] = b
@@ -257,5 +340,27 @@ def merge(rules: dict, llm: dict | None) -> dict:
     return out
 
 
+def _validate(out: dict) -> dict:
+    """Code-level sanity checks (V2 plan 5.3). Impossible values are flagged, never silently kept."""
+    review = list(out.get("needs_review") or [])
+    start, last = out.get("start_date"), out.get("last_date")
+    if start and last:
+        try:
+            if date.fromisoformat(last) < date.fromisoformat(start):
+                review.append({"field": "dates", "rules": f"start {start} is after last {last}", "model": None})
+        except ValueError:
+            review.append({"field": "dates", "rules": "a date could not be parsed", "model": None})
+    age = out.get("age") or {}
+    if age.get("min") is not None and age.get("max") is not None and age["min"] > age["max"]:
+        review.append({"field": "age", "rules": f"minimum {age['min']:g} is above maximum {age['max']:g}", "model": None})
+    fee = out.get("fee") or {}
+    if fee.get("amount") is not None and fee["amount"] < 0:
+        review.append({"field": "fee", "rules": "fee amount is negative", "model": None})
+    if out.get("apply_link") and not _apply_link(out["apply_link"] or ""):
+        pass  # a model-invented link has no URL shape; flag it below via evidence check
+    out["needs_review"] = review
+    return out
+
+
 def extract_structured(text: str) -> dict:
-    return merge(rule_extract(text), llm_extract(text))
+    return _validate(merge(rule_extract(text), llm_extract(text)))

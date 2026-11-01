@@ -35,7 +35,9 @@ cd frontend && npm install && npm run dev
 
 Open http://localhost:3000, create an account, then add the sample notice from `samples/sample_notice.txt`.
 
-With `LLM_PROVIDER=mock` (the default) everything works without an AI model. Answers are copied from the notice text. Connect a real model to get better answers (see below).
+The default is the **Meta Model API** (`LLM_PROVIDER=meta`, `META_MODEL=muse-spark-1.3`) for development, testing and production. If `META_API_KEY` is empty the app falls back to the offline mock with a warning, so tests and a first look still work. With `mock`, answers are copied from the notice text.
+
+**Confirmed model setup:** chat/extraction/vision = Meta `muse-spark-1.3`. Meta's API has no embeddings endpoint, so embeddings use a separate embedding model (`EMBEDDING_MODEL` on an OpenAI-compatible endpoint, e.g. a hosted multilingual embedder or Ollama `nomic-embed-text`); unset = offline hash vectors. `llama_local` is an optional backup only, not the default.
 
 ## Choose your AI model
 
@@ -43,12 +45,14 @@ Set `LLM_PROVIDER` in `.env`:
 
 | Value | What it is | When to use |
 |---|---|---|
+| `meta` | Meta Model API (Muse Spark 1.3). Needs `META_API_KEY`. | **Default: development, testing, production** |
+| `llama_local` | A Meta Llama model on your own computer (through Ollama). Free. | Optional backup only |
 | `mock` | No model. Fixed rules only. | First look, tests, CI |
-| `llama_local` | A Meta Llama model on your own computer (through Ollama). Free. | Daily development, no API tokens used |
-| `meta` | Meta Model API (Muse Spark). Needs `META_API_KEY`. | Production |
 | `openai_compat` | Any OpenAI-style server (OpenAI, Baseten, Fireworks, Modal, vLLM) | If you prefer another host |
 
 Switching is only a setting. No code changes. Details: [docs/MODELS.md](docs/MODELS.md).
+
+**Shared notices:** a public notice is processed once. If another user uploads the same PDF, they are linked to the existing copy instantly (no re-reading/chunking/embedding) and get their own tracker entry and eligibility from their own profile. Files that look personal are never shared.
 
 ## Run everything with Docker
 

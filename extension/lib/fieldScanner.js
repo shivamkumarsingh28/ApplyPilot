@@ -59,6 +59,36 @@
       .map((o) => ({ value: o.value, label: clean(o.textContent) }));
   }
 
+  // What kind of document a file field wants, guessed from its label/name/accept.
+  const FILE_KINDS = [
+    ["sign", "signature"], ["signature", "signature"],
+    ["photo", "photo"], ["photograph", "photo"], ["picture", "photo"], ["image", "photo"],
+    ["marksheet", "marksheet"], ["mark sheet", "marksheet"], ["marks", "marksheet"],
+    ["10th", "marksheet_10"], ["class 10", "marksheet_10"], ["matric", "marksheet_10"],
+    ["12th", "marksheet_12"], ["class 12", "marksheet_12"], ["intermediate", "marksheet_12"],
+    ["degree", "degree"], ["graduation", "degree"],
+    ["caste", "caste_certificate"], ["category cert", "caste_certificate"],
+    ["domicile", "domicile"], ["residence", "domicile"],
+    ["aadhaar", "id_proof"], ["id proof", "id_proof"], ["identity", "id_proof"], ["pan", "id_proof"],
+    ["birth", "birth_certificate"],
+    ["cert", "certificate"], ["certificate", "certificate"], ["document", "certificate"], ["upload", "certificate"],
+  ];
+
+  function fileKindFor(label, name, accept) {
+    const hay = (label + " " + name).toLowerCase();
+    for (const [needle, kind] of FILE_KINDS) if (hay.includes(needle)) return kind;
+    if ((accept || "").includes("image")) return "photo";
+    return "other";
+  }
+
+  /** Nearby hint text ("JPG only, 20-50 KB", "max 200KB") shown with the field. */
+  function hintFor(el) {
+    const cell = el.closest("td, li, div, p");
+    const t = clean((cell && cell.textContent) || "");
+    const m = t.match(/(?:max|maximum|up to|size|only|format)[^.;]{0,60}/i);
+    return m ? m[0].trim().slice(0, 80) : "";
+  }
+
   /** Returns [{index,id,name,label,placeholder,type,autocomplete,pattern,options}] */
   function scanFields(doc) {
     doc = doc || root.document;
@@ -69,14 +99,20 @@
     for (const el of controls) {
       const tag = el.tagName.toLowerCase();
       const type = tag === "select" ? "select" : tag === "textarea" ? "textarea" : (el.getAttribute("type") || "text").toLowerCase();
-      if (SKIP_TYPES.has(type) || el.disabled || !isVisible(el)) continue;
+      if (SKIP_TYPES.has(type) || el.disabled) continue;
       if (type === "file") {
-        const desc = { index: index++, id: el.id || el.name || "file-" + index, name: el.name || "", label: labelFor(el),
-          placeholder: "", type: "file", autocomplete: "", pattern: "", options: [], accept: el.getAttribute("accept") || "" };
+        const label = labelFor(el);
+        const accept = el.getAttribute("accept") || "";
+        // Hidden file inputs sit behind custom "Upload" buttons/widgets: scripting can
+        // usually still set them, so report them (flagged) instead of silently skipping.
+        const desc = { index: index++, id: el.id || el.name || "file-" + index, name: el.name || "", label,
+          placeholder: "", type: "file", autocomplete: "", pattern: "", options: [], accept,
+          kind: fileKindFor(label, el.name || "", accept), hint: hintFor(el), customUpload: !isVisible(el) };
         el.setAttribute(ATTR, String(desc.index));
         out.push(desc);
         continue;
       }
+      if (!isVisible(el)) continue;
       if (el.readOnly) continue;
 
       if (type === "radio") {
@@ -116,7 +152,7 @@
     return out;
   }
 
-  const api = { scanFields, labelFor, ATTR };
+  const api = { scanFields, labelFor, fileKindFor, ATTR };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ApplyPilotScanner = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

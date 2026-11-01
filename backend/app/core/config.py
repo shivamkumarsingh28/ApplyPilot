@@ -31,12 +31,14 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     access_token_minutes: int = 60 * 24 * 7
 
-    # Language model provider: mock | llama_local | meta | openai_compat
-    #   mock          offline, no model (tests, quick demo, safe default)
-    #   llama_local   a Meta Llama model running on your own machine through Ollama (free, for development)
-    #   meta          Meta Model API, Muse Spark (production)
+    # Language model provider: meta | llama_local | mock | openai_compat
+    #   meta          Meta Model API, Muse Spark (DEFAULT for dev, testing and production)
+    #   llama_local   optional backup: a Meta Llama model on your own machine via Ollama
+    #   mock          offline, no model (tests, quick demo)
     #   openai_compat any OpenAI-compatible server (OpenAI itself, Baseten, Fireworks, Modal, vLLM)
-    llm_provider: str = "mock"
+    # If meta is selected but META_API_KEY is empty, the factory falls back to
+    # mock with a warning so a fresh checkout/tests never crash.
+    llm_provider: str = "meta"
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = "llama3.2"
     ollama_vision_model: str = ""  # e.g. llama3.2-vision, needed only to read scanned notices
@@ -47,8 +49,14 @@ class Settings(BaseSettings):
     openai_compat_key: str = ""
     openai_compat_model: str = ""
 
-    # Embeddings: hash (offline) | api
-    embedding_provider: str = "hash"
+    # Embeddings: api | hash (offline fallback)
+    # Meta Model API has NO embeddings endpoint, so embeddings always come from
+    # a separate embedding model served on an OpenAI-compatible endpoint
+    # (EMBEDDING_BASE/EMBEDDING_MODEL), e.g. a hosted multilingual embedder or
+    # Ollama `nomic-embed-text`. Unset -> deterministic hash embedder (offline).
+    embedding_provider: str = "api"
+    embedding_base: str = ""  # empty = reuse the configured LLM endpoint
+    embedding_api_key: str = ""
     embedding_model: str = ""
 
     # Segmentation: opencv (offline) | meta_sam

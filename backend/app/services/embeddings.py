@@ -1,8 +1,11 @@
 """Text embeddings with an offline fallback.
 
-`hash` embeddings use signed feature hashing over unigrams and bigrams. They are
-not as good as a neural embedding model but need no network, are deterministic,
-and work well enough for retrieval inside a single notice (a few dozen chunks).
+Meta Model API has NO embeddings endpoint, so `api` embeddings go to a separate
+OpenAI-compatible embedding endpoint (EMBEDDING_BASE / EMBEDDING_MODEL, e.g. a
+hosted multilingual embedder or Ollama `nomic-embed-text`) — never to Meta.
+`hash` embeddings use signed feature hashing over unigrams and bigrams: not as
+good as a neural model, but deterministic, free, and the safe offline fallback.
+The model name is stored on every chunk so two models are never mixed.
 """
 
 from __future__ import annotations
@@ -12,10 +15,9 @@ import math
 import re
 
 from app.core.config import get_settings
-from app.services.llm.factory import get_llm
 
 DIM = 384
-_TOKEN = re.compile(r"[a-z0-9]+")
+_TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 _STOP = {"the", "a", "an", "of", "to", "and", "or", "is", "are", "for", "in", "on", "at", "be", "by", "with", "as", "it"}
 
 
@@ -34,11 +36,23 @@ def hash_embed(text: str) -> list[float]:
     return [v / norm for v in vec]
 
 
+def embedding_model_name() -> str:
+    s = get_settings()
+    if s.embedding_provider == "api" and s.embedding_model:
+        return s.embedding_model
+    return "hash-v1"
+
+
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed with the provider when configured, otherwise with the offline hash embedder."""
-    if get_settings().embedding_provider == "api":
+    """Embed with the configured embedding endpoint, otherwise the offline hash embedder."""
+    s = get_settings()
+    if s.embedding_provider == "api" and s.embedding_model:
         try:
-            return get_llm().embed(texts)
+            from app.services.llm.openai_compat import OpenAICompatProvider
+
+            base = s.embedding_base or s.openai_compat_base or s.ollama_base_url
+            key = s.embedding_api_key or s.openai_compat_key or "ollama"
+            return OpenAICompatProvider(base, key, "", embedding_model=s.embedding_model).embed(texts)
         except Exception:  # fall back rather than fail an upload
             pass
     return [hash_embed(t) for t in texts]

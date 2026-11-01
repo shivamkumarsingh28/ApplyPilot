@@ -13,6 +13,14 @@ def key_answers(structured: dict) -> list[str]:
     fee = s.get("fee") or {}
     if fee.get("amount"):
         lines.append(f"Fee: {fee.get('currency', 'INR')} {fee['amount']}")
+    if s.get("start_date"):
+        lines.append(f"Start date: {s['start_date']}")
+    if s.get("vacancies"):
+        lines.append(f"Vacancies: {s['vacancies']}")
+    if (s.get("salary") or {}).get("amount"):
+        lines.append(f"Salary: {s['salary'].get('currency', 'INR')} {s['salary']['amount']}")
+    if s.get("apply_link"):
+        lines.append(f"Apply here: {s['apply_link']}")
     qual = (s.get("qualification") or {}).get("level")
     if qual:
         lines.append(f"Qualification: {qual}")

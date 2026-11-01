@@ -51,6 +51,17 @@ def init_db() -> None:
             "notice_id": "INTEGER",
             "app_ref": "VARCHAR(20) DEFAULT ''",
         },
+        "notices": {
+            "file_hash": "VARCHAR(64) DEFAULT ''",
+            "text_hash": "VARCHAR(64) DEFAULT ''",
+            "is_shared": "BOOLEAN DEFAULT 0",
+            "trust": "VARCHAR(20) DEFAULT 'private'",
+        },
+        "notice_chunks": {
+            "heading": "VARCHAR(300) DEFAULT ''",
+            "parent": "TEXT DEFAULT ''",
+            "embedding_model": "VARCHAR(120) DEFAULT ''",
+        },
     }
     with engine.begin() as conn:
         for table, columns in wanted.items():

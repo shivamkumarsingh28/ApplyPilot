@@ -60,6 +60,14 @@ class Document(Base):
 
 
 class Notice(Base):
+    """One shared copy of a public notice (V2 plan section 10).
+
+    `user_id` is the first uploader. Every other user who uploads the same PDF
+    gets a `NoticeLink` instead of a second copy, so extraction/chunking/
+    embedding run exactly once per notice. Profiles, chats and eligibility stay
+    per-user; only the notice text/facts/chunks are shared.
+    """
+
     __tablename__ = "notices"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -69,9 +77,27 @@ class Notice(Base):
     raw_text: Mapped[str] = mapped_column(Text, default="")
     structured: Mapped[dict] = mapped_column(JSON, default=dict)
     scam_report: Mapped[dict] = mapped_column(JSON, default=dict)
+    file_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+    text_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+    is_shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    trust: Mapped[str] = mapped_column(String(20), default="private")  # private | user_shared | verified
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     chunks: Mapped[list["NoticeChunk"]] = relationship(back_populates="notice", cascade="all, delete-orphan")
+    links: Mapped[list["NoticeLink"]] = relationship(back_populates="notice", cascade="all, delete-orphan")
+
+
+class NoticeLink(Base):
+    """A user's link to a shared notice they did not upload. Access is via owner OR link."""
+
+    __tablename__ = "notice_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("notices.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    notice: Mapped["Notice"] = relationship(back_populates="links")
 
 
 class NoticeChunk(Base):
@@ -81,8 +107,11 @@ class NoticeChunk(Base):
     notice_id: Mapped[int] = mapped_column(ForeignKey("notices.id"), index=True)
     page: Mapped[int] = mapped_column(Integer, default=1)
     idx: Mapped[int] = mapped_column(Integer, default=0)
+    heading: Mapped[str] = mapped_column(String(300), default="")
     text: Mapped[str] = mapped_column(Text)
+    parent: Mapped[str] = mapped_column(Text, default="")
     embedding: Mapped[list] = mapped_column(JSON, default=list)
+    embedding_model: Mapped[str] = mapped_column(String(120), default="")
 
     notice: Mapped[Notice] = relationship(back_populates="chunks")
 

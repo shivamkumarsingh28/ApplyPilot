@@ -3,11 +3,11 @@ import base64
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_owned
+from app.api.deps import get_current_user, get_visible_notice
 from app.api.routes.documents import store_document
 from app.core.ratelimit import limit
 from app.core.uploads import sniff_mime
-from app.db.models import Notice, User
+from app.db.models import User
 from app.db.session import get_db
 from app.services.photo_studio import process_photo, process_signature
 
@@ -42,7 +42,7 @@ async def process(
     spec: dict = {}
     portal_background = None
     if notice_id is not None:
-        notice = get_owned(db, Notice, notice_id, user)
+        notice = get_visible_notice(db, notice_id, user)
         spec = dict((notice.structured or {}).get("photo_spec" if kind == "photo" else "signature_spec") or {})
         portal_background = spec.get("background")
     from app.services.colours import resolve_background

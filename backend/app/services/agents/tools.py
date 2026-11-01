@@ -45,10 +45,20 @@ class Tool:
     roles: tuple[str, ...] = ("user", "admin")
 
 
+def _visible_notices(ctx: ToolContext) -> list[Notice]:
+    from app.db.models import NoticeLink
+
+    owned = ctx.db.query(Notice).filter(Notice.user_id == ctx.user.id).all()
+    linked_ids = [r[0] for r in ctx.db.query(NoticeLink.notice_id).filter(NoticeLink.user_id == ctx.user.id).all()]
+    linked = ctx.db.query(Notice).filter(Notice.id.in_(linked_ids)).all() if linked_ids else []
+    by_id = {n.id: n for n in owned + linked}
+    return sorted(by_id.values(), key=lambda n: n.id, reverse=True)
+
+
 def _notice(ctx: ToolContext, args: dict) -> Notice:
     raw = args.get("notice_id", ctx.notice_id)
     if raw in (None, ""):
-        mine = ctx.db.query(Notice).filter(Notice.user_id == ctx.user.id).all()
+        mine = _visible_notices(ctx)
         if len(mine) == 1:
             return mine[0]
         if not mine:
@@ -59,14 +69,16 @@ def _notice(ctx: ToolContext, args: dict) -> Notice:
         nid = int(raw)
     except (TypeError, ValueError):
         raise ToolError("notice_id must be a number") from None
-    notice = ctx.db.get(Notice, nid)
-    if notice is None or notice.user_id != ctx.user.id:
+    from app.services.notice_service import visible_notice
+
+    notice = visible_notice(ctx.db, nid, ctx.user)
+    if notice is None:  # same message for missing and foreign ids: nothing leaks
         raise ToolError("Notice not found")
     return notice
 
 
 def list_notices(ctx: ToolContext, args: dict) -> dict:
-    rows = ctx.db.query(Notice).filter(Notice.user_id == ctx.user.id).order_by(Notice.id.desc()).limit(20).all()
+    rows = _visible_notices(ctx)[:20]
     return {"notices": [{"id": n.id, "title": n.title[:80], "last_date": (n.structured or {}).get("last_date"),
                          "safety": (n.scam_report or {}).get("level")} for n in rows]}
 
@@ -132,6 +144,77 @@ def photo_requirements(ctx: ToolContext, args: dict) -> dict:
             "how": "Open Photo studio, choose this notice, upload your picture. It resizes and checks the file for you."}
 
 
+def _parse_date(value: str, field: str) -> date:
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        raise ToolError(f"{field} must be a date like 2007-03-10") from None
+
+
+def _num(value, field: str) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ToolError(f"{field} must be a number") from None
+
+
+def calc_age_tool(ctx: ToolContext, args: dict) -> dict:
+    from app.services import calculators
+
+    dob_raw = args.get("dob") or load_profile(ctx.db, ctx.user).get("dob")
+    if not dob_raw:
+        raise ToolError("date of birth is missing: ask the user for it, or add it to the profile")
+    as_of = _parse_date(args["as_of"], "as_of") if args.get("as_of") else date.today()
+    return calculators.calc_age(_parse_date(dob_raw, "dob"), as_of)
+
+
+def calc_days_left_tool(ctx: ToolContext, args: dict) -> dict:
+    from app.services import calculators
+
+    if args.get("notice_id") or not args.get("target"):
+        n = _notice(ctx, args)
+        last = (n.structured or {}).get("last_date")
+        if not last:
+            raise ToolError("no last date found in this notice")
+        return calculators.calc_days_left(_parse_date(last, "target"))
+    return calculators.calc_days_left(_parse_date(args["target"], "target"))
+
+
+def calc_age_limit_tool(ctx: ToolContext, args: dict) -> dict:
+    from app.services import calculators
+
+    n = _notice(ctx, args)
+    age = (n.structured or {}).get("age") or {}
+    if age.get("max") is None:
+        raise ToolError("no maximum age found in this notice")
+    category = args.get("category") or load_profile(ctx.db, ctx.user).get("category") or ""
+    return calculators.calc_max_age_with_relaxation(age["max"], age.get("relaxations"), str(category))
+
+
+def calc_fee_total_tool(ctx: ToolContext, args: dict) -> dict:
+    from app.services import calculators
+
+    fees = args.get("fees")
+    if not fees:
+        n = _notice(ctx, args)
+        fee = (n.structured or {}).get("fee") or {}
+        if not fee.get("amount"):
+            raise ToolError("no fee found in this notice")
+        fees = [fee["amount"]]
+    return calculators.calc_fee_total([_num(f, "fees") for f in fees])
+
+
+def calc_percentage_tool(ctx: ToolContext, args: dict) -> dict:
+    from app.services import calculators
+
+    if args.get("obtained") in (None, "") or args.get("maximum") in (None, ""):
+        raise ToolError("obtained and maximum marks are required")
+    try:
+        return calculators.calc_percentage(_num(args["obtained"], "obtained"), _num(args["maximum"], "maximum"))
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
 _TOOLS = [
     Tool("list_notices", "List the user's saved notices.", {}, list_notices),
     Tool("notice_facts", "Key facts of one notice: dates, age, qualification, fee, documents.", {"notice_id": "number, optional"}, notice_facts),
@@ -142,6 +225,14 @@ _TOOLS = [
     Tool("profile_gaps", "Which profile fields the user has not filled yet.", {}, profile_gaps),
     Tool("upcoming_deadlines", "The user's open applications due soon.", {"days": "number, default 7"}, upcoming_deadlines),
     Tool("photo_requirements", "Photo and signature rules of one notice.", {"notice_id": "number, optional"}, photo_requirements),
+    Tool("calc_age", "Calculate exact age on a date. Use this for any age question; never calculate age yourself.",
+         {"dob": "YYYY-MM-DD, optional (default: profile)", "as_of": "YYYY-MM-DD, optional (default: today)"}, calc_age_tool),
+    Tool("calc_days_left", "Calculate days left to a notice's last date (or a target date). Use this for deadline questions.",
+         {"notice_id": "number, optional", "target": "YYYY-MM-DD, optional"}, calc_days_left_tool),
+    Tool("calc_age_limit", "Calculate the maximum age for a category including the notice's relaxation. Use for age-limit questions.",
+         {"notice_id": "number, optional", "category": "category, optional (default: profile)"}, calc_age_limit_tool),
+    Tool("calc_fee_total", "Add up fees exactly. Use for any fee total question.", {"notice_id": "number, optional", "fees": "list of amounts, optional"}, calc_fee_total_tool),
+    Tool("calc_percentage", "Calculate a percentage from obtained and maximum marks.", {"obtained": "number", "maximum": "number"}, calc_percentage_tool),
 ]
 TOOLS: dict[str, Tool] = {t.name: t for t in _TOOLS}
 

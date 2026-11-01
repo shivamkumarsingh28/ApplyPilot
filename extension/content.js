@@ -12,6 +12,8 @@
       sendResponse({ fields: window.ApplyPilotScanner.scanFields(document), url: location.hostname });
     } else if (msg && msg.type === "applypilot:fill") {
       sendResponse(window.ApplyPilotFiller.fillFields(document, msg.items || []));
+    } else if (msg && msg.type === "applypilot:ping") {
+      sendResponse({ ok: true });
     } else if (msg && msg.type === "applypilot:attach") {
       const bytes = new Uint8Array(msg.bytes || []);
       sendResponse(window.ApplyPilotFiller.attachFile(document, msg.index, bytes, msg.filename, msg.mime));

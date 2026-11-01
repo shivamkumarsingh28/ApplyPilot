@@ -57,7 +57,20 @@
       el.files = dt.files;
       el.dispatchEvent(new doc.defaultView.Event("input", { bubbles: true }));
       el.dispatchEvent(new doc.defaultView.Event("change", { bubbles: true }));
-      return { attached: true };
+      const ok = el.files && el.files.length > 0;
+      if (ok) {
+        el.style.outline = "2px solid #2f9e44";
+        el.title = "Attached by ApplyPilot: " + filename + ". Check it before you submit.";
+        // Small visible label next to the field: mid-form, the user must SEE which file landed where.
+        try {
+          const tag = doc.createElement("span");
+          tag.dataset.applypilotAttached = "1";
+          tag.textContent = "✓ ApplyPilot: " + filename;
+          tag.style.cssText = "display:inline-block;margin:4px 0;padding:2px 6px;background:#e6f4ea;color:#14532d;border-radius:4px;font-size:12px";
+          el.insertAdjacentElement("afterend", tag);
+        } catch (e) { /* label is best-effort; the outline already marks the field */ }
+      }
+      return { attached: !!ok, reason: ok ? "" : "files-not-set" };
     } catch (e) {
       return { attached: false, reason: String(e && e.message || e) };
     }

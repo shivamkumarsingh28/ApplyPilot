@@ -52,10 +52,21 @@ function NoticeDetail() {
   return (
     <>
       <h1>{notice.title}</h1>
+      {notice.shared && <p className="muted small">Shared notice — already processed once, so you got it instantly.</p>}
+      {notice.apply_link ? (
+        <p><a className="btn" href={notice.apply_link} target="_blank" rel="noopener noreferrer">Apply on the official website</a>{" "}
+          <span className="muted small">{notice.apply_link}</span></p>
+      ) : (
+        <p className="muted small">No official apply link was found in this notice.</p>
+      )}
       <ErrorText error={error} />
       <div className="grid">
         <Card title="Key facts">
           <table><tbody>
+            {s.doc_type && <tr><th>Type</th><td>{(s.kind ?? s.doc_type).replace(/_/g, " ")}</td></tr>}
+            {s.start_date && <tr><th>Start date</th><td>{s.start_date}</td></tr>}
+            {s.vacancies ? <tr><th>Vacancies</th><td>{s.vacancies}</td></tr> : null}
+            {s.salary?.amount ? <tr><th>Salary</th><td>{s.salary.currency} {s.salary.amount}</td></tr> : null}
             <tr><th>Last date</th><td>{s.last_date ?? "Not found"}</td></tr>
             <tr><th>Age</th><td>{s.age.min ?? "?"} to {s.age.max ?? "?"} years{s.age.as_of ? ` (as on ${s.age.as_of})` : ""}</td></tr>
             <tr><th>Relaxation</th><td>{Object.entries(s.age.relaxations).map(([k, v]) => `${k.toUpperCase()} +${v}`).join(", ") || "None found"}</td></tr>

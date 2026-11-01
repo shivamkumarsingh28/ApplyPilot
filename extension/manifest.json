@@ -5,6 +5,7 @@
   "description": "Fill job and admission forms from your ApplyPilot profile. You review every field before anything is filled.",
   "action": { "default_popup": "popup.html", "default_title": "ApplyPilot" },
   "permissions": ["activeTab", "scripting", "storage"],
+  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" },
   "host_permissions": ["http://localhost:8000/*"],
   "optional_host_permissions": ["https://*/*"],
   "minimum_chrome_version": "110"

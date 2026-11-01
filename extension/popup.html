@@ -21,12 +21,14 @@
     <p id="status" class="muted"></p>
     <ul id="rows"></ul>
     <button id="fill" hidden>Fill selected fields</button>
-    <h3>Vault files</h3>
-    <p class="muted small">File fields found on the page are listed here. Pick a vault file to attach it. Files are fetched only when you pick one and are never stored by the extension.</p>
+    <h3>Documents to attach (from your vault)</h3>
+    <p class="muted small">Each upload field below is matched to a file in your ApplyPilot vault. The best match is already selected — change it if needed, then Attach. Files are fetched only when you click Attach and are never stored by the extension. Nothing is submitted.</p>
+    <button id="attach-all" hidden>Attach all suggested</button>
     <ul id="vault"></ul>
     <p class="muted small">Nothing is submitted. Review the page before you send the form.</p>
   </section>
 
+  <script src="lib/vaultMatcher.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

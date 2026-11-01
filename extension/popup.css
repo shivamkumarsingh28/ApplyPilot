@@ -11,3 +11,14 @@ li input[type=text] { width: 100%; box-sizing: border-box; margin-top: 3px; padd
 .muted { color: #667085; } .small { font-size: 11px; } .error { color: #b42318; }
 .review { border-left: 3px solid #e0a100; padding-left: 6px; }
 .skip { color: #98a2b3; }
+.filefield { background: #f8faff; border: 1px solid #e3e9f7; border-radius: 6px; padding: 6px; margin: 6px 0; }
+.filefield .row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.filefield select { flex: 1; min-width: 0; padding: 4px; }
+.filefield button { width: auto; margin: 0; padding: 6px 10px; }
+.filefield button:disabled { background: #b9c4d6; cursor: not-allowed; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; vertical-align: middle; }
+.badge.exact { background: #e6f4ea; color: #14532d; }
+.badge.possible { background: #fef3c7; color: #92400e; }
+.badge.none { background: #fee2e2; color: #991b1b; }
+.warn { color: #b45309; }
+.thumb { max-width: 120px; max-height: 120px; border: 1px solid #d5d9e2; border-radius: 4px; margin-top: 4px; }

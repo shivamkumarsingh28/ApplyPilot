@@ -10,6 +10,32 @@ form, and exactly where to add future features.
 > to file fields. Two inviolable rules shape every line: **the extension never submits a form**,
 > and **sensitive fields (password, captcha, OTP, ID/payment) are never touched**.
 
+> **Vault-attach enhancement:** each file field is now classified (`photo`, `signature`,
+> `marksheet_10/12`, `degree`, `caste_certificate`, `domicile`, `id_proof`, `birth_certificate`,
+> `certificate`, `other`) from its label/name/`accept` by `fieldScanner.fileKindFor`, with nearby
+> hint text ("JPG only, max 200KB") captured and hidden inputs flagged `customUpload` instead of
+> being skipped. `lib/vaultMatcher.js` scores vault documents per field — exact kind first,
+> notice application copies above originals — and **excludes type-incompatible files** (no PDF
+> offered for an `image/*` field). The popup shows one card per file field with the best match
+> pre-selected, a changeable dropdown, per-field status, and **Attach all suggested**. Attach still
+> happens only on click: bytes are fetched from the vault at that moment, set via `DataTransfer`,
+> the input is outlined green, and blocked sites fall back to a downloads save with instructions.
+> Manual test: load the extension unpacked, open `samples/sample_form.html`, sign in, Scan —
+> photo/signature/certificate fields each show their suggested vault file.
+
+> **User-in-between (never force a guess):** matching returns a confidence. `exact` (one clear
+> kind+type winner, non-generic field) is pre-selected; `possible` (tie between two files, or a
+> generic field like "certificate") pre-selects **nothing** — the popup shows a "Please choose"
+> badge and Attach stays disabled until the user picks. Every card shows a *Why* line (which vault
+> tag/type/copy won), file sizes in KB, a **Preview** (image thumbnail inline; PDFs render page 1
+> to a canvas in the popup via `lib/pdfPreview.js` + vendored pdf.js — never a new tab, so the
+> user never loses their place mid-form),
+> and a size warning when the chosen file breaks the field's hint ("max 50 KB"). A successful
+> attach outlines the field green **and** prints a visible "✓ ApplyPilot: filename" label next to
+> it on the page. Choices are remembered per website + field (`choice:<host>:<field>` in
+> `chrome.storage.local`) and pre-selected next time. **Attach all** attaches only `exact`
+> matches — `possible` fields always wait for the user.
+
 ---
 
 ## Contents

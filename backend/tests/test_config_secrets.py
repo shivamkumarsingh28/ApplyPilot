@@ -19,7 +19,8 @@ def test_no_real_credential_is_a_default(monkeypatch):
     for field in ("meta_api_key", "sam_api_key", "openai_compat_key", "google_client_secret",
                   "github_client_secret", "linkedin_client_secret", "brave_api_key", "tavily_api_key"):
         assert getattr(s, field) == "", field
-    assert s.llm_provider == "mock" and s.segmenter == "opencv" and s.search_provider == ""
+    assert s.llm_provider == "meta" and s.segmenter == "opencv" and s.search_provider == ""
+    assert s.meta_model == "muse-spark-1.3" and s.embedding_provider == "api" and s.embedding_model == ""
 
 
 def test_production_rejects_placeholder_secrets(monkeypatch):

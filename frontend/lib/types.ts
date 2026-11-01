@@ -8,6 +8,13 @@ export type ImageSpec = { width: number | null; height: number | null; min_kb: n
 export type Structured = {
   title: string;
   organisation: string | null;
+  doc_type?: string;
+  kind?: string;
+  start_date?: string | null;
+  vacancies?: number | null;
+  salary?: { amount: number; currency: string } | null;
+  apply_link?: string | null;
+  evidence?: Record<string, { quote: string; page: number }>;
   last_date: string | null;
   age: { min: number | null; max: number | null; as_of: string | null; relaxations: Record<string, number> };
   qualification: { level: string | null; min_percentage: number | null; text: string };
@@ -21,7 +28,7 @@ export type Structured = {
 };
 
 export type ScamReport = { score: number; level: "low" | "medium" | "high"; reasons: string[]; tips: string[]; disclaimer: string };
-export type Notice = { id: number; title: string; source_filename: string; structured: Structured; scam_report: ScamReport; created_at: string };
+export type Notice = { id: number; title: string; source_filename: string; structured: Structured; scam_report: ScamReport; created_at: string; apply_link: string | null; doc_type: string | null; shared: boolean; trust: string };
 export type NoticeListItem = { id: number; title: string; last_date: string | null; scam_level: string | null; created_at: string };
 export type Answer = { answer: string; mode: string; citations: { page: number; text: string; score: number }[] };
 

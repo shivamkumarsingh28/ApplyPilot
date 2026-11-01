@@ -10,6 +10,10 @@ class NoticeOut(BaseModel):
     structured: dict
     scam_report: dict
     created_at: datetime
+    apply_link: str | None = None
+    doc_type: str | None = None
+    shared: bool = False
+    trust: str = "private"
 
 
 class NoticeListItem(BaseModel):

@@ -44,6 +44,16 @@ def get_owned(db: Session, model, obj_id: int, user: User):
     return obj
 
 
+def get_visible_notice(db: Session, notice_id: int, user: User):
+    """Fetch a notice the user owns OR is linked to (shared library); 404 otherwise."""
+    from app.services.notice_service import visible_notice
+
+    notice = visible_notice(db, notice_id, user)
+    if notice is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Notice not found")
+    return notice
+
+
 def require_bot_secret(x_bot_secret: str = Header(default="")) -> None:
     expected = get_settings().bot_shared_secret
     if not expected or not hmac.compare_digest(x_bot_secret, expected):

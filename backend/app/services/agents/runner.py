@@ -85,6 +85,8 @@ def render(tool: str, result: dict) -> str:
         if not result["items"]:
             return f"No open applications are due in the next {result['days']} days."
         return "Due soon: " + "; ".join(f"{i['title']} on {i['deadline']} ({i['days_left']} days)" for i in result["items"]) + "."
+    if tool in ("calc_age", "calc_days_left", "calc_age_limit", "calc_fee_total", "calc_percentage"):
+        return result.get("working", json.dumps(result))
     if tool == "photo_requirements":
         p, s = result.get("photo"), result.get("signature")
         def fmt(spec):
