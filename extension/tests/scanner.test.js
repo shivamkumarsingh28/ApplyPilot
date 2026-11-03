@@ -115,6 +115,18 @@ test("size limit parsing and warnings from field hints", () => {
   assert.strictEqual(matcher.sizeWarning(field, { size: 30 * 1024 }), "");
 });
 
+test("custom vault type matches a field by its label words", () => {
+  const matcher = require("../lib/vaultMatcher.js");
+  const fields = [{ index: 0, name: "inc", label: "Upload Income Certificate", type: "file", kind: "certificate", accept: ".pdf" }];
+  const docs = [
+    { id: 1, kind: "other", custom_kind: "Income Certificate", filename: "income.pdf", mime: "application/pdf", is_original: true },
+    { id: 2, kind: "degree", custom_kind: "", filename: "degree.pdf", mime: "application/pdf", is_original: true },
+  ];
+  const [m] = matcher.matchFields(fields, docs, null);
+  assert.strictEqual(m.choices[0].id, 1); // custom-named doc ranks first for its field
+  assert.ok(m.reason.includes("Income Certificate"));
+});
+
 test("pdf/image preview helpers classify by mime and filename", async () => {
   const pdfPreview = await import("../lib/pdfPreview.js").catch(() => null);
   if (!pdfPreview) return; // node may refuse the .mjs import in older versions; helpers mirrored below

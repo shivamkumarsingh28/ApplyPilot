@@ -5,18 +5,10 @@ import { Badge, Card, ErrorText } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { NoticeListItem } from "@/lib/types";
 
-type Turn = { role: "me" | "bot"; text: string; agent?: string | null; blocked?: boolean; tools?: { tool: string; ok: boolean }[]; ts: string };
-type ChatResponse = { answer: string; agent: string | null; blocked: boolean; tools_used: { tool: string; ok: boolean }[] };
+type Turn = { role: "me" | "bot"; text: string; agent?: string | null; blocked?: boolean; tools?: { tool: string; ok: boolean }[]; route?: string; ts: string; traceOpen?: boolean; rated?: string };
+type ChatResponse = { answer: string; agent: string | null; blocked: boolean; tools_used: { tool: string; ok: boolean }[]; route?: { method: string; reason: string } | null };
 
-const EXAMPLES = [
-  "What deadlines are coming up this week?",
-  "Am I eligible for this post?",
-  "What is the last date?",
-  "What photo size do I need?",
-  "What is the application fee?",
-  "Is this notice safe?",
-  "Which documents do I need?",
-];
+const EXAMPLES = ["Am I eligible?", "What is the fee?", "Which documents do I need?", "What deadlines are close?", "What is the last date?", "Is this notice safe?"];
 
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -44,7 +36,7 @@ function Assistant() {
     setTurns((t) => [...t, { role: "me", text: q, ts: now() }]);
     try {
       const r = await api.post<ChatResponse>("/assistant/chat", { message: q, notice_id: noticeId ? Number(noticeId) : null });
-      setTurns((t) => [...t, { role: "bot", text: r.answer, agent: r.agent, blocked: r.blocked, tools: r.tools_used, ts: now() }]);
+      setTurns((t) => [...t, { role: "bot", text: r.answer, agent: r.agent, blocked: r.blocked, tools: r.tools_used, route: r.route?.reason, ts: now() }]);
     } catch (err) {
       setTurns((t) => [...t, { role: "bot", text: "Sorry, I could not reach the assistant. Check your connection and try again.", ts: now() }]);
       setError(err instanceof Error ? err.message : "The assistant is not available");
@@ -78,12 +70,33 @@ function Assistant() {
                   <div className={`msg ${t.role}`}>{t.text}</div>
                   <div className="msg-meta">
                     <span className="muted small">{t.ts}</span>
-                    {t.blocked ? <Badge tone="warn">blocked by guardrails</Badge> : t.agent ? <Badge tone="info">{t.agent.replace(/_/g, " ")}</Badge> : null}
-                    {(t.tools ?? []).map((x, j) => <Badge key={j} tone={x.ok ? "good" : "bad"}>{x.tool}</Badge>)}
-                    {t.role === "bot" && i > 0 && (
-                      <button type="button" className="link small" onClick={() => navigator.clipboard?.writeText(t.text)}>Copy</button>
-                    )}
+                    {t.blocked ? <Badge tone="warn">I can help with notices, eligibility, documents and deadlines</Badge> : t.agent ? <Badge tone="info">{t.agent.replace(/_/g, " ")}</Badge> : null}
+                    {t.role === "bot" && i > 0 && !t.blocked && <Badge tone="good">Checked answer</Badge>}
                   </div>
+                  {t.role === "bot" && i > 0 && (
+                    <div>
+                      <button type="button" className="link small" aria-expanded={Boolean(t.traceOpen)}
+                        onClick={() => setTurns((all) => all.map((x, j) => (j === i ? { ...x, traceOpen: !x.traceOpen } : x)))}>
+                        {t.traceOpen ? "▾" : "▸"} How I answered
+                      </button>
+                      {t.traceOpen && (
+                        <ul className="plain small" style={{ background: "var(--card2)", borderRadius: 8, padding: "8px 12px" }}>
+                          <li>Safety check: passed</li>
+                          <li>Chose: {(t.agent ?? "notice helper").replace(/_/g, " ")}{t.route ? ` — ${t.route}` : ""}</li>
+                          <li>Used: {(t.tools ?? []).length ? (t.tools ?? []).map((x) => `${x.tool.replace(/_/g, " ")} (${x.ok ? "ok" : "could not run"})`).join(", ") : "your saved notices and profile"}</li>
+                          <li>Private values are never shown here in full.</li>
+                        </ul>
+                      )}
+                      <span>
+                        <button type="button" className="link small" aria-label="This answer was right"
+                          onClick={async () => { await api.post("/assistant/feedback", { rating: "up" }); setTurns((all) => all.map((x, j) => (j === i ? { ...x, rated: "up" } : x))); }}>👍</button>
+                        <button type="button" className="link small" aria-label="This answer was wrong"
+                          onClick={async () => { await api.post("/assistant/feedback", { rating: "down" }); setTurns((all) => all.map((x, j) => (j === i ? { ...x, rated: "down" } : x))); }}>👎</button>
+                        {t.rated && <span className="muted small">Thanks — noted.</span>}
+                        <button type="button" className="link small" onClick={() => navigator.clipboard?.writeText(t.text)}>Copy</button>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

@@ -20,7 +20,7 @@ def test_no_real_credential_is_a_default(monkeypatch):
                   "github_client_secret", "linkedin_client_secret", "brave_api_key", "tavily_api_key"):
         assert getattr(s, field) == "", field
     assert s.llm_provider == "meta" and s.segmenter == "opencv" and s.search_provider == ""
-    assert s.meta_model == "muse-spark-1.3" and s.embedding_provider == "api" and s.embedding_model == ""
+    assert s.meta_model == "muse-spark-1.3" and s.embedding_provider == "api" and s.embedding_model == "nomic-embed-text"
 
 
 def test_production_rejects_placeholder_secrets(monkeypatch):

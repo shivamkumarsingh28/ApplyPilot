@@ -81,6 +81,18 @@
     return "other";
   }
 
+  // "Class 10th Marksheet" and "10+2 Marksheet" mean different vault documents,
+  // but both contain "marksheet" (and "10" appears inside "10+2" too). Resolve
+  // the class from the label first so a 12th-marksheet field never pre-selects
+  // the 10th marksheet.
+  function refineFileKind(kind, label, name) {
+    if (kind !== "marksheet" && kind !== "marksheet_10" && kind !== "marksheet_12") return kind;
+    const hay = (label + " " + name).toLowerCase();
+    if (/\b(12th|class 12|10\+2|intermediate|higher secondary|hsc)\b/.test(hay)) return "marksheet_12";
+    if (/\b(10th|class 10|matric|high school|ssc exam|secondary)\b/.test(hay)) return "marksheet_10";
+    return kind;
+  }
+
   /** Nearby hint text ("JPG only, 20-50 KB", "max 200KB") shown with the field. */
   function hintFor(el) {
     const cell = el.closest("td, li, div, p");
@@ -107,7 +119,7 @@
         // usually still set them, so report them (flagged) instead of silently skipping.
         const desc = { index: index++, id: el.id || el.name || "file-" + index, name: el.name || "", label,
           placeholder: "", type: "file", autocomplete: "", pattern: "", options: [], accept,
-          kind: fileKindFor(label, el.name || "", accept), hint: hintFor(el), customUpload: !isVisible(el) };
+          kind: refineFileKind(fileKindFor(label, el.name || "", accept), label, el.name || ""), hint: hintFor(el), customUpload: !isVisible(el) };
         el.setAttribute(ATTR, String(desc.index));
         out.push(desc);
         continue;
@@ -127,9 +139,21 @@
         const optLabel = labelFor(el);
         desc.options.push({ value: el.value, label: optLabel });
         if (!desc.label) {
-          const group = el.closest("fieldset");
-          const legend = group && group.querySelector("legend");
-          desc.label = legend ? clean(legend.textContent) : clean(el.name);
+          // aria-labelledby on the group, then the table cell before the group
+          // (common on government portals) — both beat the fieldset legend.
+          const groupEl = el.closest("[aria-labelledby]");
+          const byId = groupEl && doc.getElementById(groupEl.getAttribute("aria-labelledby"));
+          if (byId && clean(byId.textContent)) desc.label = clean(byId.textContent);
+          if (!desc.label) {
+            const cell = el.closest("td, th");
+            const prev = cell && cell.previousElementSibling;
+            if (prev && clean(prev.textContent)) desc.label = clean(prev.textContent);
+          }
+          if (!desc.label) {
+            const group = el.closest("fieldset");
+            const legend = group && group.querySelector("legend");
+            desc.label = legend ? clean(legend.textContent) : clean(el.name);
+          }
         }
         continue;
       }
@@ -152,7 +176,7 @@
     return out;
   }
 
-  const api = { scanFields, labelFor, fileKindFor, ATTR };
+  const api = { scanFields, labelFor, fileKindFor, refineFileKind, ATTR };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ApplyPilotScanner = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

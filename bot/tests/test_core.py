@@ -34,8 +34,16 @@ def fake_backend(calls):
         if path == "/notices":
             return httpx.Response(200, json=[{"id": 3, "title": "Army post"}, {"id": 4, "title": "Bank PO"}])
         if path == "/photo/process":
+            body = request.content.decode(errors="ignore")
+            calls.append(("PHOTO_BODY", body, None))
             return httpx.Response(200, json={"filename": "photo_ready.jpg", "mime": "image/jpeg", "data_base64": base64.b64encode(b"READY").decode(),
                                              "report": {"ok": True, "warnings": [], "checks": [{"name": "Size in pixels", "ok": True, "detail": "200x230"}]}})
+        if path == "/documents":
+            return httpx.Response(201, json={"id": 5, "filename": "saved.pdf"})
+        if path == "/pdf/compress":
+            return httpx.Response(200, json={"filename": "doc_compressed.pdf", "mime": "application/pdf",
+                                             "data_base64": base64.b64encode(b"SMALLPDF").decode(),
+                                             "report": {"original_kb": 900.0, "final_kb": 180.0, "pages": 4, "within": True, "method": "images resized"}})
         if path == "/jobs/ingest":
             return httpx.Response(202, json={"job_id": 9, "status": "queued"})
         if path == "/jobs/9":
@@ -122,10 +130,14 @@ def test_split_text():
     assert len(parts) > 1 and all(len(p) <= 1100 for p in parts)
 
 
-def test_image_without_caption_asks_which_notice(core):
+def test_image_without_caption_resizes_without_asking(core):
+    # New default: a bare photo is resized only, never blocked asking which
+    # notice, and never background-changed. Portal mode still asks.
     core.handle_text("1", "/link GOOD1234")
     reply = core.handle_image("1", PNG, "")[0].text
-    assert "Which notice" in reply and "#4 Bank PO" in reply
+    assert "Background NOT changed" in reply
+    portal = core.handle_image("1", PNG, "photo")[0].text
+    assert "Which notice" in portal and "#4 Bank PO" in portal
 
 
 def test_reminders_sent_once_per_day(core):
@@ -151,6 +163,48 @@ def test_whatsapp_signature_check():
     assert not valid_signature("appsecret", body, "sha256=deadbeef")
     assert not valid_signature("", body, good)
     assert not valid_signature("appsecret", body, "")
+
+
+def test_image_intent_defaults_to_resize_only():
+    from applypilot_bot.core import parse_image_intent
+
+    plain = parse_image_intent("")
+    assert plain.kind == "photo_resize" and plain.change_background is False
+    assert plain.background is None and plain.width is None
+    sized = parse_image_intent("resize 200x230 compress 50kb")
+    assert (sized.width, sized.height, sized.max_kb) == (200, 230, 50)
+    assert sized.kind == "photo_resize" and sized.change_background is False
+    # Classic form still works, but now it is the ONLY way the background changes.
+    portal = parse_image_intent("photo 3 light blue")
+    assert portal.kind == "photo" and portal.notice_id == 3 and portal.change_background is True
+    explicit = parse_image_intent("resize 200x230 blue background")
+    assert explicit.change_background is True and explicit.background == "blue"
+    bare = parse_image_intent("photo 3")
+    assert bare.notice_id == 3 and bare.change_background is False
+
+
+def test_bot_photo_defaults_keep_background(core):
+    core.handle_text("1", "/link GOOD1234")
+    core.handle_image("1", PNG, "resize 200x230")
+    body = [c[1] for c in core.calls if c[0] == "PHOTO_BODY"][-1]
+    assert 'name="kind"' in body and "photo_resize" in body
+    assert "change_background" in body and "false" in body
+    assert 'name="width"' in body and "200" in body
+
+
+def test_document_intent_routing(core):
+    from applypilot_bot.core import parse_document_intent
+
+    assert parse_document_intent("", "n.pdf", "application/pdf").action == "notice"
+    assert parse_document_intent("save", "n.pdf", "application/pdf").action == "save"
+    assert parse_document_intent("compress 500kb", "n.pdf", "application/pdf").max_kb == 500
+    assert parse_document_intent("", "cert.jpg", "image/jpeg").action == "save"
+
+    core.handle_text("1", "/link GOOD1234")
+    saved = core.handle_document("1", b"%PDF-fake", "cert.pdf", "application/pdf", "save to vault")
+    assert "did not read it as a notice" in saved[0].text
+    shrunk = core.handle_document("1", b"%PDF-fake", "big.pdf", "application/pdf", "compress 200kb")
+    assert "900.0 KB" in shrunk[0].text and shrunk[1].file[0] == b"SMALLPDF"
 
 
 def test_whatsapp_payload_parsing():

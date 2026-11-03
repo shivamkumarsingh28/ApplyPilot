@@ -9,6 +9,7 @@ DOCUMENT_KINDS = ["photo", "signature", "marksheet_10", "marksheet_12", "degree"
 class DocumentOut(BaseModel):
     id: int
     kind: str
+    custom_kind: str = ""
     filename: str
     mime: str
     size: int

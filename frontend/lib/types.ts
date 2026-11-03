@@ -30,17 +30,18 @@ export type Structured = {
 export type ScamReport = { score: number; level: "low" | "medium" | "high"; reasons: string[]; tips: string[]; disclaimer: string };
 export type Notice = { id: number; title: string; source_filename: string; structured: Structured; scam_report: ScamReport; created_at: string; apply_link: string | null; doc_type: string | null; shared: boolean; trust: string };
 export type NoticeListItem = { id: number; title: string; last_date: string | null; scam_level: string | null; created_at: string };
-export type Answer = { answer: string; mode: string; citations: { page: number; text: string; score: number }[] };
+export type Answer = { answer: string; mode: string; citations: { page: number; text: string; score: number }[]; verbatim: { page: number; quote: string }[]; verified: boolean; cached: boolean };
 
-export type DocumentRow = { id: number; kind: string; filename: string; mime: string; size: number; created_at: string; is_original: boolean; original_id: number | null; application_id: number | null; notice_id: number | null; app_ref: string };
+export type DocumentRow = { id: number; kind: string; custom_kind: string; filename: string; mime: string; size: number; created_at: string; is_original: boolean; original_id: number | null; application_id: number | null; notice_id: number | null; app_ref: string };
+export type ExtraField = { key: string; label: string; type: "text" | "number" | "date" | "select"; options: string[]; value: string | number | null };
 export type IngestJob = { id: number; status: string; notice_id: number | null; error: string; source: string; timings: Record<string, number>; summary: string[]; title: string | null };
 export type Application = { id: number; title: string; notice_id: number | null; status: string; deadline: string | null; notes: string; days_left: number | null };
 export type Summary = { total: number; open: number; submitted: number; closed: number; notices: number; documents_ready: number; next_deadline: string | null; next_title: string | null; next_days_left: number | null; time_saved_minutes: number };
 export type PhotoResult = {
-  filename: string; mime: string; data_base64: string; document_id: number | null;
-  report: { ok: boolean; warnings: string[]; checks: { name: string; ok: boolean; detail: string }[] };
+  filename: string; mime: string; data_base64: string; document_id: number | null; app_ref?: string;
+  report: { ok: boolean; warnings: string[]; bytes: number; checks: { name: string; ok: boolean; detail: string }[] };
   spec: Partial<ImageSpec>;
 };
-export type Profile = Record<string, string | number | boolean | null | undefined>;
+export type Profile = Record<string, string | number | boolean | ExtraField[] | null | undefined>;
 
 export const DOC_KINDS = ["photo", "signature", "marksheet_10", "marksheet_12", "degree", "caste_certificate", "domicile", "id_proof", "birth_certificate", "other"];

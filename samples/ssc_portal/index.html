@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff Selection Commission — Online Application (SAMPLE / FICTIONAL)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="sample-banner">⚠️ SAMPLE WEBSITE FOR TESTING ONLY — This is NOT the real SSC website. Do not enter real personal data. No data leaves your computer.</div>
+
+<header class="gov-header">
+  <div class="gov-header-inner">
+    <div class="emblem">🏛️</div>
+    <div class="gov-titles">
+      <div class="gov-hindi">कर्मचारी चयन आयोग</div>
+      <div class="gov-name">STAFF SELECTION COMMISSION</div>
+      <div class="gov-sub">Government of India · Ministry of Personnel, Public Grievances &amp; Pensions</div>
+    </div>
+    <div class="gov-flag"><span></span><span></span><span></span></div>
+  </div>
+  <nav class="gov-nav">
+    <a href="#" class="active">Home</a><a href="#">Notices</a><a href="#">Apply Online</a>
+    <a href="#">Admit Card</a><a href="#">Results</a><a href="#">Answer Key</a><a href="#">Helpdesk</a>
+    <span class="nav-right">Helpline: 1800-000-0000 (Sample)</span>
+  </nav>
+</header>
+
+<div class="ticker"><strong>Latest:</strong> Combined Graduate Level (CGL) Examination 2026 — Online applications open · Last date: 14/11/2026 (Sample dates)</div>
+
+<main class="page">
+  <div class="breadcrumb">Home › Apply Online › CGL 2026 › Application Form</div>
+  <h1>Combined Graduate Level (CGL) Examination, 2026 — Online Application Form <span class="fictional">(FICTIONAL SAMPLE)</span></h1>
+  <p class="intro">Fields marked <span class="req">*</span> are mandatory. Fill the form in English only.
+  Use the <strong>ApplyPilot browser extension</strong> on this page to test autofill from your profile and document attach from your vault.</p>
+
+  <div class="steps-bar">
+    <span class="on">1. Personal Details</span><span>2. Address</span><span>3. Qualification</span>
+    <span>4. Post &amp; Exam City</span><span class="on2">5. Uploads &amp; Declaration</span>
+  </div>
+
+  <form id="ssc-form" onsubmit="return demoSubmit(event)" autocomplete="on">
+
+    <!-- ======================= 1. PERSONAL DETAILS ======================= -->
+    <fieldset class="card">
+      <legend>Part-I · Personal Details</legend>
+      <table class="form-table">
+        <tr><td><label for="cand_name">Name of Candidate <span class="req">*</span><small>(As per Matriculation Certificate)</small></label></td>
+            <td><input id="cand_name" name="candidate_name" type="text" autocomplete="name" placeholder="Full name in BLOCK letters" required></td></tr>
+        <tr><td><label for="father_name">Father's Name <span class="req">*</span></label></td>
+            <td><input id="father_name" name="father_name" type="text" placeholder="Father's full name" required></td></tr>
+        <tr><td><label for="mother_name">Mother's Name <span class="req">*</span></label></td>
+            <td><input id="mother_name" name="mother_name" type="text" placeholder="Mother's full name" required></td></tr>
+        <tr><td><label for="dob">Date of Birth <span class="req">*</span><small>(As per Matriculation Certificate)</small></label></td>
+            <td><input id="dob" name="dob" type="text" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" required> <span class="hint">Format: DD/MM/YYYY</span></td></tr>
+        <tr><td id="gender_lbl">Gender <span class="req">*</span></td>
+            <td role="radiogroup" aria-labelledby="gender_lbl">
+              <label class="inline"><input type="radio" name="gender" value="Male"> Male</label>
+              <label class="inline"><input type="radio" name="gender" value="Female"> Female</label>
+              <label class="inline"><input type="radio" name="gender" value="Transgender"> Transgender</label>
+            </td></tr>
+        <tr><td><label for="category">Category <span class="req">*</span></label></td>
+            <td><select id="category" name="category" required>
+              <option value="">-- Select Category --</option>
+              <option value="UR">General (UR)</option><option value="OBC">OBC</option>
+              <option value="SC">SC</option><option value="ST">ST</option><option value="EWS">EWS</option>
+            </select></td></tr>
+        <tr><td><label for="nationality">Nationality <span class="req">*</span></label></td>
+            <td><select id="nationality" name="nationality" autocomplete="country-name" required>
+              <option value="">-- Select --</option><option value="Indian">Indian</option>
+              <option value="Other">Other</option>
+            </select></td></tr>
+        <tr><td><label for="mobile">Mobile Number <span class="req">*</span><small>(10 digit, for OTP &amp; alerts)</small></label></td>
+            <td><input id="mobile" name="mobile" type="tel" autocomplete="tel" placeholder="10-digit mobile number" maxlength="10" required></td></tr>
+        <tr><td><label for="email">Email ID <span class="req">*</span></label></td>
+            <td><input id="email" name="email" type="email" autocomplete="email" placeholder="example@mail.com" required></td></tr>
+        <tr><td><label for="alt_mobile">Alternate Mobile Number</label></td>
+            <td><input id="alt_mobile" name="alternate_mobile" type="tel" placeholder="Optional"></td></tr>
+        <tr><td id="exs_lbl">Are you an Ex-Serviceman?</td>
+            <td role="radiogroup" aria-labelledby="exs_lbl">
+              <label class="inline"><input type="radio" name="ex_serviceman" value="Yes"> Yes</label>
+              <label class="inline"><input type="radio" name="ex_serviceman" value="No"> No</label>
+            </td></tr>
+        <tr><td id="pwd_lbl">Are you a PwD (Divyangjan) candidate?</td>
+            <td role="radiogroup" aria-labelledby="pwd_lbl">
+              <label class="inline"><input type="radio" name="pwd" value="Yes"> Yes</label>
+              <label class="inline"><input type="radio" name="pwd" value="No"> No</label>
+            </td></tr>
+        <tr><td><label for="id_mark">Visible Identification Mark <small>(e.g. mole on left cheek)</small></label></td>
+            <td><input id="id_mark" name="identification_mark" type="text" placeholder="One visible mark"></td></tr>
+      </table>
+    </fieldset>
+
+    <!-- ======================= 2. ADDRESS ======================= -->
+    <fieldset class="card">
+      <legend>Part-II · Address Details</legend>
+      <table class="form-table">
+        <tr><td><label for="perm_addr">Permanent Address <span class="req">*</span></label></td>
+            <td><textarea id="perm_addr" name="permanent_address" autocomplete="street-address" rows="3" placeholder="House no, street, area" required></textarea></td></tr>
+        <tr><td><label for="city">City / Town / Village <span class="req">*</span></label></td>
+            <td><input id="city" name="city" type="text" autocomplete="address-level2" required></td></tr>
+        <tr><td><label for="state">State / UT <span class="req">*</span></label></td>
+            <td><select id="state" name="state" autocomplete="address-level1" required>
+              <option value="">-- Select State --</option>
+              <option>Andhra Pradesh</option><option>Arunachal Pradesh</option><option>Assam</option>
+              <option>Bihar</option><option>Chhattisgarh</option><option>Delhi</option><option>Goa</option>
+              <option>Gujarat</option><option>Haryana</option><option>Himachal Pradesh</option>
+              <option>Jammu and Kashmir</option><option>Jharkhand</option><option>Karnataka</option>
+              <option>Kerala</option><option>Madhya Pradesh</option><option>Maharashtra</option>
+              <option>Manipur</option><option>Meghalaya</option><option>Mizoram</option>
+              <option>Nagaland</option><option>Odisha</option><option>Punjab</option>
+              <option>Rajasthan</option><option>Sikkim</option><option>Tamil Nadu</option>
+              <option>Telangana</option><option>Tripura</option><option>Uttar Pradesh</option>
+              <option>Uttarakhand</option><option>West Bengal</option>
+              <option>Andaman and Nicobar Islands</option><option>Chandigarh</option>
+              <option>Ladakh</option><option>Lakshadweep</option><option>Puducherry</option>
+            </select></td></tr>
+        <tr><td><label for="district">District</label></td>
+            <td><input id="district" name="district" type="text"></td></tr>
+        <tr><td><label for="pincode">PIN Code <span class="req">*</span></label></td>
+            <td><input id="pincode" name="pincode" type="text" autocomplete="postal-code" maxlength="6" placeholder="6-digit PIN code" required></td></tr>
+        <tr><td><label for="corr_addr">Correspondence Address <small>(if different from permanent)</small></label></td>
+            <td><textarea id="corr_addr" name="correspondence_address" rows="3" placeholder="Leave blank if same as permanent"></textarea></td></tr>
+      </table>
+    </fieldset>
+
+    <!-- ======================= 3. QUALIFICATION ======================= -->
+    <fieldset class="card">
+      <legend>Part-III · Educational Qualification</legend>
+      <table class="form-table">
+        <tr><td><label for="qualification">Highest Qualification <span class="req">*</span></label></td>
+            <td><select id="qualification" name="highest_qualification" required>
+              <option value="">-- Select Qualification --</option>
+              <option value="Matriculation">Matriculation (10th)</option>
+              <option value="Intermediate">Intermediate (10+2)</option>
+              <option value="Graduation">Graduation</option>
+              <option value="Post Graduation">Post Graduation</option>
+              <option value="PhD">PhD</option>
+            </select></td></tr>
+        <tr><td><label for="board10">Class 10th Board / University</label></td>
+            <td><input id="board10" name="board_10" type="text" placeholder="e.g. CBSE, State Board"></td></tr>
+        <tr><td><label for="roll10">Class 10th Roll Number</label></td>
+            <td><input id="roll10" name="roll_10" type="text"></td></tr>
+        <tr><td><label for="year10">Year of Passing (10th)</label></td>
+            <td><input id="year10" name="year_of_passing_10" type="text" placeholder="YYYY" maxlength="4"></td></tr>
+        <tr><td><label for="pct10">Percentage of Marks (10th)</label></td>
+            <td><input id="pct10" name="percentage_10" type="text" placeholder="e.g. 85.40"></td></tr>
+        <tr><td><label for="pct_grad">Percentage of Marks (Graduation)</label></td>
+            <td><input id="pct_grad" name="percentage_graduation" type="text" placeholder="e.g. 68.50"></td></tr>
+        <tr><td><label for="year_grad">Year of Passing (Graduation)</label></td>
+            <td><input id="year_grad" name="year_of_passing_graduation" type="text" placeholder="YYYY" maxlength="4"></td></tr>
+      </table>
+      <p class="note">ℹ️ Roll numbers and certificate numbers are typed by you. ApplyPilot never fills ID numbers — verify every value before submitting.</p>
+    </fieldset>
+
+    <!-- ======================= 4. POST & EXAM CENTRE ======================= -->
+    <fieldset class="card">
+      <legend>Part-IV · Post Preference &amp; Examination Centre</legend>
+      <table class="form-table">
+        <tr><td><label for="post_pref1">Post Preference 1 <span class="req">*</span></label></td>
+            <td><select id="post_pref1" name="post_preference_1" required>
+              <option value="">-- Select Post --</option>
+              <option>Assistant Section Officer (ASO)</option><option>Inspector (CBI)</option>
+              <option>Inspector (Narcotics)</option><option>Assistant Enforcement Officer</option>
+              <option>Sub Inspector (CBI)</option><option>Inspector of Posts</option>
+              <option>Junior Statistical Officer</option><option>Auditor</option>
+              <option>Accountant / Junior Accountant</option><option>Tax Assistant (CBDT)</option>
+              <option>Tax Assistant (CBIC)</option><option>Upper Division Clerk (UDC)</option>
+            </select></td></tr>
+        <tr><td><label for="post_pref2">Post Preference 2</label></td>
+            <td><select id="post_pref2" name="post_preference_2">
+              <option value="">-- Select Post --</option>
+              <option>Assistant Section Officer (ASO)</option><option>Inspector (CBI)</option>
+              <option>Inspector (Narcotics)</option><option>Assistant Enforcement Officer</option>
+              <option>Sub Inspector (CBI)</option><option>Inspector of Posts</option>
+              <option>Junior Statistical Officer</option><option>Auditor</option>
+              <option>Accountant / Junior Accountant</option><option>Tax Assistant (CBDT)</option>
+              <option>Tax Assistant (CBIC)</option><option>Upper Division Clerk (UDC)</option>
+            </select></td></tr>
+        <tr><td><label for="centre1">Examination Centre Preference 1 <span class="req">*</span></label></td>
+            <td><select id="centre1" name="exam_centre_1" required>
+              <option value="">-- Select Centre --</option>
+              <option>Delhi</option><option>Patna</option><option>Lucknow</option><option>Kolkata</option>
+              <option>Mumbai</option><option>Chennai</option><option>Bengaluru</option><option>Hyderabad</option>
+              <option>Jaipur</option><option>Chandigarh</option><option>Guwahati</option><option>Bhopal</option>
+              <option>Ahmedabad</option><option>Thiruvananthapuram</option><option>Ranchi</option><option>Raipur</option>
+            </select></td></tr>
+        <tr><td><label for="centre2">Examination Centre Preference 2</label></td>
+            <td><select id="centre2" name="exam_centre_2">
+              <option value="">-- Select Centre --</option>
+              <option>Delhi</option><option>Patna</option><option>Lucknow</option><option>Kolkata</option>
+              <option>Mumbai</option><option>Chennai</option><option>Bengaluru</option><option>Hyderabad</option>
+              <option>Jaipur</option><option>Chandigarh</option><option>Guwahati</option><option>Bhopal</option>
+              <option>Ahmedabad</option><option>Thiruvananthapuram</option><option>Ranchi</option><option>Raipur</option>
+            </select></td></tr>
+        <tr><td><label for="medium">Medium of Examination</label></td>
+            <td><select id="medium" name="exam_medium">
+              <option value="">-- Select --</option><option>English</option><option>Hindi</option>
+            </select></td></tr>
+      </table>
+    </fieldset>
+
+    <!-- ======================= 5. UPLOADS & DECLARATION ======================= -->
+    <fieldset class="card upload-card">
+      <legend>Part-V · Upload Documents &amp; Declaration</legend>
+      <p class="note">Upload clear scanned copies. ApplyPilot extension can attach these from your <strong>Vault</strong> — you choose the file, you review, you submit. (Extensions cannot silently set real file inputs on all sites; where a file can't be attached automatically, download the vault copy and select it here.)</p>
+      <table class="form-table">
+        <tr><td><label for="up_photo">Photograph <span class="req">*</span><small>Recent passport photo. JPG only, 20–50 KB, 200×230 px.</small></label></td>
+            <td><input id="up_photo" name="photograph" type="file" accept="image/jpeg"> <span class="hint">JPG only, 20-50 KB</span></td></tr>
+        <tr><td><label for="up_sign">Signature <span class="req">*</span><small>Sign on white paper. JPG only, 10–20 KB.</small></label></td>
+            <td><input id="up_sign" name="signature" type="file" accept="image/jpeg"> <span class="hint">JPG only, 10-20 KB</span></td></tr>
+        <tr><td><label for="up_10th">Class 10th Marksheet / Certificate <span class="req">*</span><small>Proof of Date of Birth. PDF, max 200 KB.</small></label></td>
+            <td><input id="up_10th" name="marksheet_10th" type="file" accept=".pdf"> <span class="hint">PDF, max 200KB</span></td></tr>
+        <tr><td><label for="up_12th">Class 12th Marksheet <small>PDF, max 200 KB.</small></label></td>
+            <td><input id="up_12th" name="marksheet_12th" type="file" accept=".pdf"> <span class="hint">PDF, max 200KB</span></td></tr>
+        <tr><td><label for="up_degree">Degree / Graduation Certificate <small>PDF, max 300 KB.</small></label></td>
+            <td><input id="up_degree" name="degree_certificate" type="file" accept=".pdf"> <span class="hint">PDF, max 300KB</span></td></tr>
+        <tr><td><label for="up_caste">Caste / Category Certificate <small>SC/ST/OBC/EWS only. PDF, max 200 KB.</small></label></td>
+            <td><input id="up_caste" name="caste_certificate" type="file" accept=".pdf"> <span class="hint">PDF, max 200KB</span></td></tr>
+        <tr><td><label for="up_domicile">Domicile / Residence Certificate <small>PDF, max 200 KB.</small></label></td>
+            <td><input id="up_domicile" name="domicile_certificate" type="file" accept=".pdf"> <span class="hint">PDF, max 200KB</span></td></tr>
+        <tr><td><label for="up_id">Identity Proof Document <small>Photo ID copy only — never type any ID number on this page. PDF/JPG, max 200 KB.</small></label></td>
+            <td><input id="up_id" name="id_proof" type="file" accept=".pdf,image/jpeg"> <span class="hint">PDF/JPG, max 200KB</span></td></tr>
+        <tr><td><label for="up_birth">Birth Certificate <small>If DOB proof is separate. PDF, max 200 KB.</small></label></td>
+            <td><input id="up_birth" name="birth_certificate" type="file" accept=".pdf"> <span class="hint">PDF, max 200KB</span></td></tr>
+      </table>
+
+      <table class="form-table security-table">
+        <tr><td><label for="captcha">Captcha <span class="req">*</span><small>Type the characters shown (dummy: <b>8K3P</b>)</small></label></td>
+            <td><span class="captcha-box">8 K 3 P</span> <input id="captcha" name="captcha" type="text" autocomplete="off"></td></tr>
+        <tr><td><label for="password">Create Password <span class="req">*</span></label></td>
+            <td><input id="password" name="password" type="password" autocomplete="new-password"></td></tr>
+      </table>
+
+      <label class="declare"><input type="checkbox" id="declare" name="declare"> I hereby declare that the information furnished above is true, complete and correct to the best of my knowledge and belief. I understand that false information may lead to cancellation of my candidature. <span class="req">*</span></label>
+
+      <div class="actions">
+        <button type="button" class="btn ghost" onclick="saveDraft()">Save as Draft</button>
+        <button type="reset" class="btn ghost">Reset</button>
+        <button type="submit" class="btn primary">Submit Application</button>
+      </div>
+      <p id="draft-msg" class="draft-msg" role="status"></p>
+      <p class="note">On this sample page, <strong>Submit never sends anything</strong> — it only shows a demo message. The declaration checkbox must be ticked by you personally (ApplyPilot never ticks it).</p>
+    </fieldset>
+  </form>
+
+  <aside class="help-card">
+    <h2>How to test ApplyPilot on this page</h2>
+    <ol>
+      <li>Start backend (<code>:8000</code>) + website (<code>:3000</code>). Fill your <strong>Profile</strong> (name, father/mother, DOB, category, mobile, email, address, city, state, PIN, qualification, marks).</li>
+      <li>Upload to your <strong>Vault</strong>: photo, signature, 10th &amp; 12th marksheets, degree, caste certificate, domicile, ID proof, birth certificate (use the matching "Type" for each).</li>
+      <li>Load the extension (<code>chrome://extensions</code> → Developer mode → Load unpacked → <code>extension/</code>), sign in, open this page, click <strong>Scan this page</strong>.</li>
+      <li>Review matched fields → <strong>Fill selected fields</strong>. Blue = filled, yellow = please check. Captcha, password, declaration and ID numbers must stay empty/unticked.</li>
+      <li>For uploads: pick the vault match the extension suggests, or download the vault file and select it manually in Part-V.</li>
+    </ol>
+    <p class="small">Serving tip: run <code>python -m http.server 5500</code> inside <code>samples/ssc_portal/</code> and open <code>http://localhost:5500/</code> (extension works best on http pages, not <code>file://</code>).</p>
+  </aside>
+</main>
+
+<footer class="gov-footer">
+  <div>© Staff Selection Commission — SAMPLE / FICTIONAL page for ApplyPilot testing only. Not affiliated with SSC or the Government of India.</div>
+  <div class="small">Best viewed in Chrome · ApplyPilot never submits a form and never fills passwords, captcha, OTP or ID numbers.</div>
+</footer>
+
+<script>
+function saveDraft() {
+  var data = {};
+  document.querySelectorAll("#ssc-form input, #ssc-form select, #ssc-form textarea").forEach(function (el) {
+    if (el.type === "file" || el.type === "password" || el.name === "captcha") return;
+    if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return;
+    if (el.name) data[el.name] = el.value;
+  });
+  try { localStorage.setItem("ssc_sample_draft", JSON.stringify(data)); } catch (e) {}
+  document.getElementById("draft-msg").textContent = "Draft saved in this browser (" + new Date().toLocaleTimeString() + "). Nothing was sent anywhere.";
+}
+function demoSubmit(e) {
+  e.preventDefault();
+  if (!document.getElementById("declare").checked) {
+    document.getElementById("draft-msg").textContent = "Please tick the declaration yourself, then submit again. (Demo only — nothing is sent.)";
+    return false;
+  }
+  var missing = [];
+  document.querySelectorAll("#ssc-form [required]").forEach(function (el) { if (!el.value) missing.push(el.name); });
+  document.getElementById("draft-msg").textContent = missing.length
+    ? "Demo submit blocked — these required fields are still empty: " + missing.join(", ") + ". (Nothing was sent.)"
+    : "✅ DEMO ONLY: form looks complete. On the real portal you would now review every value once more and submit yourself. Nothing was sent from this sample page.";
+  return false;
+}
+</script>
+</body>
+</html>

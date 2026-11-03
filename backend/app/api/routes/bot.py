@@ -34,6 +34,23 @@ def create_link_code(user: User = Depends(get_current_user), db: Session = Depen
     return {"code": code, "expires_in_minutes": 10}
 
 
+@router.get("/status")
+def link_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Whether this account is linked to a chat app (drives Home checklist + Chat apps page)."""
+    row = (db.query(BotLink).filter(BotLink.user_id == user.id, BotLink.chat_id.isnot(None))
+           .order_by(BotLink.id.desc()).first())
+    return {"linked": row is not None, "chat_id": row.chat_id if row else None}
+
+
+@router.post("/unlink")
+def unlink(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = db.query(BotLink).filter(BotLink.user_id == user.id, BotLink.chat_id.isnot(None)).all()
+    for r in rows:
+        db.delete(r)
+    db.commit()
+    return {"linked": False, "removed": len(rows)}
+
+
 @router.post("/link", response_model=TokenOut, dependencies=[Depends(require_bot_secret)])
 def link(body: LinkIn, db: Session = Depends(get_db)):
     row = db.query(BotLink).filter(BotLink.code == body.code.strip().upper()).first()

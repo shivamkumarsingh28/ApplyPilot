@@ -1,0 +1,77 @@
+/* SSC-style theme: deep blue header, saffron accent, light grey-blue form cards.
+   Sample/fictional page — visual resemblance for testing only. */
+:root {
+  --ssc-blue: #0b3d91;
+  --ssc-blue-dark: #072c6b;
+  --ssc-saffron: #ff9933;
+  --ssc-green: #138808;
+  --ink: #1a1a2e;
+  --muted: #5a6a85;
+  --card: #eef3fb;
+  --line: #b9c9e4;
+  --warn: #fff7e6;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: #dfe8f5; }
+.sample-banner { background: #b00020; color: #fff; text-align: center; font-weight: 700; padding: 8px 12px; font-size: 14px; }
+
+.gov-header { background: linear-gradient(180deg, var(--ssc-blue), var(--ssc-blue-dark)); color: #fff; }
+.gov-header-inner { display: flex; align-items: center; gap: 16px; max-width: 1100px; margin: 0 auto; padding: 12px 16px; }
+.emblem { font-size: 44px; }
+.gov-hindi { font-size: 15px; opacity: .9; }
+.gov-name { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+.gov-sub { font-size: 12px; opacity: .85; }
+.gov-flag { margin-left: auto; display: flex; flex-direction: column; width: 54px; height: 36px; border: 1px solid #ffffff66; }
+.gov-flag span:nth-child(1) { background: var(--ssc-saffron); flex: 1; }
+.gov-flag span:nth-child(2) { background: #fff; flex: 1; }
+.gov-flag span:nth-child(3) { background: var(--ssc-green); flex: 1; }
+
+.gov-nav { background: var(--ssc-blue-dark); display: flex; gap: 4px; flex-wrap: wrap; padding: 0 16px; max-width: 1100px; margin: 0 auto; }
+.gov-nav a { color: #dce8ff; text-decoration: none; padding: 10px 14px; font-size: 14px; }
+.gov-nav a.active, .gov-nav a:hover { background: var(--ssc-saffron); color: #10243e; font-weight: 700; }
+.nav-right { margin-left: auto; color: #ffd9ad; font-size: 13px; padding: 10px 0; }
+
+.ticker { background: var(--warn); border-bottom: 2px solid var(--ssc-saffron); padding: 8px 16px; font-size: 14px; text-align: center; }
+
+.page { max-width: 1100px; margin: 0 auto; padding: 18px 16px 40px; }
+.breadcrumb { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+h1 { font-size: 22px; color: var(--ssc-blue-dark); margin: 4px 0; }
+.fictional { color: #b00020; font-size: 14px; }
+.intro { font-size: 14px; }
+.req { color: #b00020; font-weight: 700; }
+
+.steps-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+.steps-bar span { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 6px 14px; font-size: 13px; }
+.steps-bar span.on { background: var(--ssc-blue); color: #fff; border-color: var(--ssc-blue); }
+.steps-bar span.on2 { background: var(--ssc-saffron); border-color: var(--ssc-saffron); font-weight: 700; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; margin: 18px 0; padding: 16px; }
+.card legend { background: var(--ssc-blue); color: #fff; font-weight: 700; padding: 6px 16px; border-radius: 4px; font-size: 15px; }
+.upload-card legend { background: var(--ssc-blue-dark); }
+
+.form-table { width: 100%; border-collapse: collapse; }
+.form-table td { padding: 8px 10px; vertical-align: top; border-bottom: 1px solid #d5e1f2; }
+.form-table td:first-child { width: 42%; font-weight: 600; font-size: 14px; }
+.form-table td small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.form-table input[type="text"], .form-table input[type="tel"], .form-table input[type="email"],
+.form-table input[type="password"], .form-table select, .form-table textarea {
+  width: 100%; max-width: 460px; padding: 8px 10px; border: 1px solid #8fa8cc; border-radius: 4px; font-size: 14px; background: #fff;
+}
+.form-table input:focus, .form-table select:focus, .form-table textarea:focus { outline: 2px solid var(--ssc-saffron); }
+.inline { font-weight: 400; margin-right: 16px; }
+.hint { color: var(--muted); font-size: 12px; }
+.note { font-size: 13px; background: #fff; border-left: 4px solid var(--ssc-saffron); padding: 8px 12px; }
+.captcha-box { display: inline-block; background: #10243e; color: #ffd94d; font-family: monospace; font-size: 20px;
+  letter-spacing: 6px; padding: 4px 14px; border-radius: 4px; margin-right: 8px; vertical-align: middle; }
+.declare { display: block; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 12px; font-size: 14px; margin: 14px 0; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--ssc-blue); border-radius: 4px; padding: 10px 22px; font-size: 15px; cursor: pointer; background: #fff; color: var(--ssc-blue); }
+.btn.primary { background: var(--ssc-blue); color: #fff; font-weight: 700; }
+.btn.primary:hover { background: var(--ssc-blue-dark); }
+.btn.ghost:hover { background: #dce8ff; }
+.draft-msg { font-weight: 700; color: var(--ssc-blue-dark); min-height: 20px; }
+.help-card { background: #fff; border: 2px dashed var(--ssc-blue); border-radius: 8px; padding: 16px 20px; margin-top: 24px; }
+.help-card h2 { color: var(--ssc-blue-dark); margin-top: 0; font-size: 18px; }
+.help-card code { background: var(--card); padding: 1px 5px; border-radius: 3px; }
+.small { font-size: 12px; color: var(--muted); }
+.gov-footer { background: var(--ssc-blue-dark); color: #dce8ff; text-align: center; padding: 16px; font-size: 13px; }

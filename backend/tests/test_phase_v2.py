@@ -139,10 +139,47 @@ def test_whole_notice_answer_and_hallucinated_number_rejected(client, auth, samp
     monkeypatch.setattr(rag, "get_llm", lambda: FakeLLM("The application fee is Rs. 250 (page 2)."))
     ok = client.post(f"/api/v1/notices/{n['id']}/ask", json={"question": "What is the fee?"}, headers=auth).json()
     assert "250" in ok["answer"] and ok["mode"] == "whole_notice"
+    # Verbatim proof: the exact sentence from the PDF travels with the answer.
+    assert ok["verified"] is True and ok["verbatim"] and "250" in ok["verbatim"][0]["quote"]
+    assert ok["verbatim"][0]["page"] == 2
 
     monkeypatch.setattr(rag, "get_llm", lambda: FakeLLM("The application fee is Rs. 999 (page 2)."))
     bad = client.post(f"/api/v1/notices/{n['id']}/ask", json={"question": "What is the fee exactly?"}, headers=auth).json()
     assert "999" not in bad["answer"] and bad["mode"] == "not_found"
+
+
+def test_verifier_accepts_reformatted_dates_but_not_invented_ones(sample_text):
+    """Regression: notice-detail Ask died on '14 November 2026' -> '2026-11-14'."""
+    from app.services.rag import _verify_answer
+
+    assert _verify_answer("The last date is 2026-11-14 (page 1).", sample_text) is True
+    assert _verify_answer("Last date: 14/11/2026.", sample_text) is True
+    assert _verify_answer("The fee is Rs. 250/- only.", sample_text) is True
+    assert _verify_answer("The last date is 2026-12-25 (page 1).", sample_text) is False
+    assert _verify_answer("The fee is Rs. 500.", sample_text) is False
+
+
+def test_empty_cached_answer_is_never_served_and_empty_result_is_not_cached(client, auth, sample_text, monkeypatch):
+    """Regression: poisoned cache rows showed a blank answer + 'saved answer (no model call)'."""
+    from app.db import session as sm
+    from app.db.models import AnswerCache
+    from app.services import rag as rag_mod
+
+    n = client.post("/api/v1/notices", data={"text": sample_text}, headers=auth).json()
+    payload = {"answer": "", "citations": [{"page": 2, "text": "x", "score": 1}], "mode": "model"}
+    cached = client.post(f"/api/v1/notices/{n['id']}/ask", json={"question": "What is the application fee?"}, headers=auth).json()
+    assert "250" in cached["answer"]  # extractive while offline; cached normally
+    db = next(sm.get_db())
+    db.query(AnswerCache).filter(AnswerCache.notice_id == n["id"]).update({"answer": payload})
+    db.commit()
+    db.close()
+    # The poisoned row is ignored+purged; a real answer is computed instead.
+    fresh = client.post(f"/api/v1/notices/{n['id']}/ask", json={"question": "What is the application fee?"}, headers=auth).json()
+    assert "250" in fresh["answer"] and fresh.get("cached") is not True
+    # Online path with an empty-handed model: falls back, never blanks, never caches blank.
+    monkeypatch.setattr(rag_mod, "get_llm", lambda: FakeLLM(""))
+    uncached = client.post(f"/api/v1/notices/{n['id']}/ask", json={"question": "What is the fee to apply?"}, headers=auth).json()
+    assert uncached["answer"].strip(), uncached
 
 
 def test_notice_out_exposes_apply_link(client, auth, sample_text):

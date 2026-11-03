@@ -44,6 +44,14 @@ SYNONYMS: dict[str, list[str]] = {
     "qualification": ["highest qualification", "educational qualification", "qualification", "education level"],
     "percentage": ["percentage", "marks obtained", "aggregate marks", "marks"],
     "qualification_year": ["year of passing", "passing year"],
+    "alternate_phone": ["alternate mobile number", "alternate mobile", "alternate phone", "secondary mobile", "secondary phone"],
+    "correspondence_address": ["correspondence address", "mailing address", "present address", "communication address"],
+    "district": ["district"],
+    "board_10": ["class 10th board", "10th board", "board / university", "board university", "name of board"],
+    "qualification_year_10": ["year of passing (10th)", "year of passing 10th", "10th passing year", "passing year (10th)"],
+    "percentage_10": ["percentage of marks (10th)", "percentage (10th)", "percentage of marks 10th", "10th percentage", "marks (10th)"],
+    "percentage_graduation": ["percentage of marks (graduation)", "percentage (graduation)", "graduation percentage", "percentage of marks graduation", "marks (graduation)"],
+    "identification_mark": ["visible identification mark", "identification mark", "visible mark"],
 }
 _PHRASES = sorted(((k, p) for k, ps in SYNONYMS.items() for p in ps), key=lambda kp: -len(kp[1]))
 
@@ -64,11 +72,27 @@ def _field_text(f: dict) -> str:
     return _norm(" ".join(str(f.get(k) or "") for k in ("label", "placeholder", "name", "id", "ariaLabel", "title")))
 
 
-def match_field(f: dict) -> tuple[str | None, float, str]:
+def match_field(f: dict, profile: dict | None = None) -> tuple[str | None, float, str]:
     ac = (f.get("autocomplete") or "").split(" ")[-1]
     if ac in AUTOCOMPLETE:
         return AUTOCOMPLETE[ac], 0.98, "autocomplete attribute"
     text = _field_text(f)
+    # Boolean flags are only offered to Yes/No radio/select fields with the
+    # matching question label — never to a plain text box.
+    if (f.get("type") or "").lower() in ("radio", "select"):
+        norm = _norm(text)
+        for key, words in (("ex_serviceman", ("ex serviceman", "ex-serviceman", "serviceman")),
+                           ("pwd", ("pwd", "divyangjan", "person with disability", "disabled"))):
+            if any(w in norm for w in words):
+                return key, 0.85, f'label matches "{words[0]}"'
+        if "ward of" in norm or "ex-servicemen ward" in norm:
+            return "ex_servicemen_ward", 0.85, 'label matches "ward"'
+    # User-created profile fields: exact label phrase match only, and always
+    # below the needs-review line — a custom name is a guess the user confirms.
+    for ef in (profile or {}).get("extra_fields") or []:
+        label = _norm(str(ef.get("label") or ""))
+        if label and label in text:
+            return ef["key"], 0.7, f'your custom field "{ef.get("label")}"'
     for key, phrase in _PHRASES:
         if re.search(rf"(?<![a-z]){re.escape(_norm(phrase))}(?![a-z])", text):
             words = len(phrase.split())
@@ -123,8 +147,18 @@ def _pick_option(value: str, options: list[dict]) -> str | None:
     return None
 
 
+def _custom_values(profile: dict) -> dict:
+    """Flatten user-created fields into {key: value}; they live under extra_fields."""
+    out = {}
+    for ef in profile.get("extra_fields") or []:
+        if isinstance(ef, dict) and ef.get("key") and ef.get("value") not in (None, ""):
+            out[ef["key"]] = ef["value"]
+    return out
+
+
 def _derive(profile: dict) -> dict:
     p = dict(profile)
+    p.update(_custom_values(profile))
     name = (p.get("full_name") or "").strip()
     if name and not p.get("first_name"):
         parts = name.split()
@@ -165,7 +199,7 @@ def map_fields(fields: list[dict], profile: dict) -> list[dict]:
             results.append({"id": fid, "index": _idx(f, i), "key": None, "value": None, "confidence": 0.0,
                             "needs_review": False, "skipped": True, "reason": "Never filled automatically (password, file, captcha, ID or payment field)."})
             continue
-        key, conf, why = match_field(f)
+        key, conf, why = match_field(f, profile)
         if key is None:
             unmatched.append(f)
         keyed[fid] = (key, conf, why)
@@ -183,6 +217,10 @@ def map_fields(fields: list[dict], profile: dict) -> list[dict]:
             out["reason"] = "No matching profile field."
         else:
             raw = prof.get(key)
+            # Yes/No radio groups (Ex-Serviceman, PwD): turn a boolean profile
+            # flag into the option value the mapper can pick.
+            if isinstance(raw, bool):
+                raw = "Yes" if raw else "No"
             if raw in (None, ""):
                 out["reason"] = f"'{key}' is not in your profile yet."
             else:

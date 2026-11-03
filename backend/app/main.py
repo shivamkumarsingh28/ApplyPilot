@@ -32,7 +32,25 @@ def create_app() -> FastAPI:
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        allow_private_network=settings.app_env != "production",
     )
+
+    @app.middleware("http")
+    async def private_network_preflight(request: Request, call_next):
+        """Chrome's Private Network Access: a page on localhost asking to reach
+        another localhost port sends Access-Control-Request-Private-Network and
+        rejects the preflight unless the server answers it. Without this, the
+        website's API calls fail in the browser while curl works."""
+        if (request.method == "OPTIONS" and request.headers.get("access-control-request-private-network") == "true"
+                and request.headers.get("origin")):
+            return JSONResponse(content="OK", headers={
+                "Access-Control-Allow-Origin": request.headers["origin"],
+                "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
+                "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+                "Access-Control-Allow-Private-Network": "true",
+                "Access-Control-Max-Age": "600",
+            })
+        return await call_next(request)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):

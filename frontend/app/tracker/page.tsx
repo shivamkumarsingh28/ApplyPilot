@@ -9,6 +9,7 @@ const STATUSES = ["planned", "in_progress", "submitted", "closed"];
 
 function Tracker() {
   const [rows, setRows] = useState<Application[]>([]);
+  const [view, setView] = useState<"list" | "board">("list");
   const [title, setTitle] = useState("");
   const [deadline, setDeadline] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +33,39 @@ function Tracker() {
         </form>
         <ErrorText error={error} />
       </Card>
+      <div className="tabs" role="tablist" aria-label="Tracker view">
+        <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>List</button>
+        <button type="button" className={view === "board" ? "active" : ""} onClick={() => setView("board")}>Board</button>
+      </div>
+      {view === "board" ? (
+        <div className="board">
+          {STATUSES.map((st) => (
+            <div key={st} className="board-col">
+              <h3 style={{ textTransform: "capitalize" }}>{st.replace("_", " ")}</h3>
+              {rows.filter((r) => r.status === st).map((r) => (
+                <div key={r.id} className="board-card">
+                  <strong>{r.title.slice(0, 50)}</strong>
+                  <div className="muted small">{r.deadline ?? "no date"}</div>
+                  {r.days_left !== null && <Badge tone={r.days_left < 0 ? "bad" : r.days_left <= 3 ? "bad" : r.days_left <= 7 ? "warn" : "good"}>{r.days_left < 0 ? "passed" : `${r.days_left} days left`}</Badge>}
+                  <div><select aria-label={`Move ${r.title}`} value={r.status} onChange={async (e) => { await api.patch(`/applications/${r.id}`, { status: e.target.value }); load(); }}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
+                </div>
+              ))}
+              {rows.filter((r) => r.status === st).length === 0 && <p className="muted small">Nothing here.</p>}
+            </div>
+          ))}
+        </div>
+      ) : (
       <Card>
-        {rows.length === 0 ? <Empty>No applications yet.</Empty> : (
+        {rows.filter((r) => r.days_left !== null && r.days_left <= 7 && ["planned", "in_progress"].includes(r.status)).length > 0 && (
+          <>
+            <h3>Closing soon</h3>
+            <ul className="plain">{rows.filter((r) => r.days_left !== null && r.days_left <= 7 && ["planned", "in_progress"].includes(r.status)).map((r) => (
+              <li key={r.id}><strong>{r.title.slice(0, 60)}</strong> <Badge tone="bad">{r.days_left! < 0 ? "passed" : `${r.days_left} days left`}</Badge> <span className="muted small">{r.deadline}</span></li>
+            ))}</ul>
+            <h3>All applications</h3>
+          </>
+        )}
+        {rows.length === 0 ? <Empty>No applications yet. Add one above, or open a notice and it is tracked for you.</Empty> : (
           <table>
             <thead><tr><th>Application</th><th>Deadline</th><th>Status</th><th /></tr></thead>
             <tbody>{rows.map((r) => (
@@ -47,6 +79,7 @@ function Tracker() {
           </table>
         )}
       </Card>
+      )}
     </>
   );
 }

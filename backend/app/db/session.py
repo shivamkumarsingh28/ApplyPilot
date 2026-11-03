@@ -45,6 +45,7 @@ def init_db() -> None:
     Base.metadata.create_all(engine)
     wanted = {
         "documents": {
+            "custom_kind": "VARCHAR(80) DEFAULT ''",
             "is_original": "BOOLEAN DEFAULT 1",
             "original_id": "INTEGER",
             "application_id": "INTEGER",

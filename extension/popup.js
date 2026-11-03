@@ -166,7 +166,7 @@ async function loadVault(fileFields) {
     match.choices.forEach((d) => {
       const opt = document.createElement("option");
       opt.value = d.id;
-      opt.textContent = d.filename + " (" + d.kind.replace(/_/g, " ") + (d.is_original ? "" : ", copy")
+      opt.textContent = d.filename + " (" + (d.custom_kind || d.kind.replace(/_/g, " ")) + (d.is_original ? "" : ", copy")
         + (d.size ? ", " + Math.max(1, Math.round(d.size / 1024)) + " KB" : "") + ")";
       sel.appendChild(opt);
     });

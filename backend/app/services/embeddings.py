@@ -37,6 +37,9 @@ def hash_embed(text: str) -> list[float]:
 
 
 def embedding_model_name() -> str:
+    """Name stored on each chunk. NOTE: this is the CONFIGURED model; if the API
+    call fails, embed_texts falls back to hash vectors under the same ingest —
+    check embed_texts' return via vectors' length (768 for nomic) if debugging."""
     s = get_settings()
     if s.embedding_provider == "api" and s.embedding_model:
         return s.embedding_model

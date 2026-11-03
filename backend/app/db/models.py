@@ -47,6 +47,9 @@ class Document(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     kind: Mapped[str] = mapped_column(String(50), default="other")
+    # User-named type when kind == "other" ("Income Certificate"). Display + the
+    # extension's field guess only; engine logic always sees the safe "other".
+    custom_kind: Mapped[str] = mapped_column(String(80), default="")
     filename: Mapped[str] = mapped_column(String(255))
     mime: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
     size: Mapped[int] = mapped_column(Integer, default=0)

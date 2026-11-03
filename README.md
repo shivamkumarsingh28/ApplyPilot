@@ -37,7 +37,9 @@ Open http://localhost:3000, create an account, then add the sample notice from `
 
 The default is the **Meta Model API** (`LLM_PROVIDER=meta`, `META_MODEL=muse-spark-1.3`) for development, testing and production. If `META_API_KEY` is empty the app falls back to the offline mock with a warning, so tests and a first look still work. With `mock`, answers are copied from the notice text.
 
-**Confirmed model setup:** chat/extraction/vision = Meta `muse-spark-1.3`. Meta's API has no embeddings endpoint, so embeddings use a separate embedding model (`EMBEDDING_MODEL` on an OpenAI-compatible endpoint, e.g. a hosted multilingual embedder or Ollama `nomic-embed-text`); unset = offline hash vectors. `llama_local` is an optional backup only, not the default.
+**Confirmed model setup:** chat/extraction/vision = Meta `muse-spark-1.3`. Meta's API has no embeddings endpoint (confirmed), so embeddings use a **local Llama-stack model by default: Ollama `nomic-embed-text`** (`ollama pull nomic-embed-text`, keep Ollama running) — free, private, no Meta tokens. If Ollama is unreachable, offline hash vectors take over automatically. `llama_local` chat remains an optional backup only.
+
+**Trust in answers:** every answer shows the page it came from, a `✓ checked against the notice text` mark when its figures verify against the source, and the **exact quoted sentence copied from the PDF** (“As written in the notice”). Questions with no supporting text are answered "not found in this notice" — including on the notice detail page.
 
 ## Choose your AI model
 

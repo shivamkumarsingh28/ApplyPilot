@@ -173,6 +173,44 @@ def _report(spec: Spec, out_img: Image.Image, info: dict, extra: list[dict], war
     return {"checks": checks, "warnings": warnings, "ok": all(c["ok"] for c in checks), "bytes": info["bytes"]}
 
 
+def resize_only(img: Image.Image, spec: Spec, mode: str = "crop") -> tuple[Image.Image, list[dict]]:
+    """Resize WITHOUT touching colour, background or lighting.
+
+    mode "crop" keeps proportions (centre crop to the aspect); "fit" adds white
+    padding (nothing is cut or stretched); "stretch" forces exact pixels.
+    The user asked for this explicitly: 'only resize, do not change anything else'.
+    """
+    checks: list[dict] = []
+    out_w, out_h = spec.width or img.width, spec.height or img.height
+    if (out_w, out_h) == img.size:
+        checks.append({"name": "Dimensions", "ok": True, "detail": f"Already {out_w}x{out_h}px"})
+        return img, checks
+    if mode == "stretch":
+        out = img.resize((out_w, out_h), Image.LANCZOS)
+        checks.append({"name": "Dimensions", "ok": True, "detail": f"Resized (stretched) to {out_w}x{out_h}px"})
+    elif mode == "fit":
+        scale = min(out_w / img.width, out_h / img.height)
+        inner = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.LANCZOS)
+        out = Image.new("RGB", (out_w, out_h), (255, 255, 255))
+        out.paste(inner, ((out_w - inner.width) // 2, (out_h - inner.height) // 2))
+        checks.append({"name": "Dimensions", "ok": True, "detail": f"Fitted inside {out_w}x{out_h}px with white padding (nothing cropped)"})
+    else:
+        out = _crop_with_padding(img, _center_crop_box(img.size, out_w / out_h)).resize((out_w, out_h), Image.LANCZOS)
+        checks.append({"name": "Dimensions", "ok": True, "detail": f"Cropped to shape and resized to {out_w}x{out_h}px"})
+    checks.append({"name": "Colour untouched", "ok": True, "detail": "Background and lighting were NOT changed (resize-only)"})
+    return out, checks
+
+
+def process_resize(data: bytes, spec_dict: dict | None) -> tuple[bytes, dict]:
+    """'Only resize my file' — exact pixels + KB range + format. Nothing else changes."""
+    spec = Spec.from_dict(spec_dict)
+    img = _load(data)
+    mode = (spec_dict or {}).get("resize_mode") or "crop"
+    out, checks = resize_only(img, spec, mode)
+    payload, info = fit_size(out, spec)
+    return payload, _report(spec, out, info, checks, [])
+
+
 def process_photo(data: bytes, spec_dict: dict | None) -> tuple[bytes, dict]:
     spec = Spec.from_dict(spec_dict)
     img = _load(data)
@@ -192,20 +230,52 @@ def process_photo(data: bytes, spec_dict: dict | None) -> tuple[bytes, dict]:
         checks.append({"name": "Face detected", "ok": False, "detail": "Not found"})
 
     cropped = _crop_with_padding(img, box)
-    hint = None
-    if face:
-        fx, fy, fw, fh = face
-        hint = (max(0, fx - box[0] - fw // 2), max(0, fy - box[1] - fh // 2), int(fw * 2), int(fh * 3))
-    segmenter = get_segmenter()
-    mask = segmenter.foreground_mask(cropped, hint, "person")
-    mask_img = Image.fromarray(mask).filter(ImageFilter.GaussianBlur(1.5))
-    bg = Image.new("RGB", cropped.size, background_rgb(spec.background))
-    composed = Image.composite(cropped, bg, mask_img)
-    checks.append({"name": "Background", "ok": True, "detail": f"Set to {spec.background} ({getattr(segmenter, 'last_used', segmenter.name)})"})
+    change_bg = (spec_dict or {}).get("change_background", True)
+    if change_bg is False or change_bg == "false":
+        composed = cropped  # professional mode: user keeps their original background
+        checks.append({"name": "Background", "ok": True, "detail": "Kept your original background (not changed)"})
+    else:
+        hint = None
+        if face:
+            fx, fy, fw, fh = face
+            hint = (max(0, fx - box[0] - fw // 2), max(0, fy - box[1] - fh // 2), int(fw * 2), int(fh * 3))
+        segmenter = get_segmenter()
+        mask = segmenter.foreground_mask(cropped, hint, "person")
+        mask_img = Image.fromarray(mask).filter(ImageFilter.GaussianBlur(1.5))
+        bg = Image.new("RGB", cropped.size, background_rgb(spec.background))
+        composed = Image.composite(cropped, bg, mask_img)
+        checks.append({"name": "Background", "ok": True, "detail": f"Set to {spec.background} ({getattr(segmenter, 'last_used', segmenter.name)})"})
 
     out = composed.resize((out_w, out_h), Image.LANCZOS)
     payload, info = fit_size(out, spec)
     return payload, _report(spec, out, info, checks, warnings)
+
+
+def process_document(data: bytes, spec_dict: dict | None) -> tuple[bytes, dict]:
+    """Certificate/marksheet scan: NO face, NO background swap.
+
+    What uploading users actually need here: straighten light/shadow (optional,
+    gentle), exact pixel size, exact KB range, and JPG<->PNG conversion.
+    """
+    spec = Spec.from_dict(spec_dict)
+    raw = (spec_dict or {})
+    img = _load(data)
+    checks: list[dict] = []
+    out = img
+    if raw.get("enhance", True) is not False and raw.get("enhance") != "false":
+        gray = np.array(out.convert("L")).astype(np.float32)
+        k = max(31, (min(gray.shape) // 8) | 1)
+        bg = cv2.GaussianBlur(gray, (k, k), 0)
+        flat = np.clip(gray / np.maximum(bg, 1) * 255, 0, 255).astype(np.uint8)
+        out = Image.fromarray(flat).convert("RGB")
+        checks.append({"name": "Scan cleanup", "ok": True, "detail": "Uneven light and shadows gently flattened"})
+    if spec.width and spec.height and (spec.width, spec.height) != out.size:
+        out, rc = resize_only(out, spec, raw.get("resize_mode") or "fit")  # fit: never cut a certificate's edges
+        checks.extend(rc)
+    payload, info = fit_size(out, spec)
+    fmt = "png" if spec.format == "png" else "jpg"
+    checks.append({"name": "Format", "ok": True, "detail": f"Saved as {fmt.upper()}"})
+    return payload, _report(spec, out, info, checks, [])
 
 
 def process_signature(data: bytes, spec_dict: dict | None) -> tuple[bytes, dict]:

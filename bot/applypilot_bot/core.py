@@ -15,10 +15,16 @@ from applypilot_bot.store import Store
 
 HELP = (
     "I can help with your job and admission notices.\n\n"
-    "Send me a notice PDF and I will read it, then answer your questions about it.\n"
+    "PDF — tell me what to do with it in the caption:\n"
+    "- No caption (or 'notice'): I read it as a notice and answer questions about it.\n"
+    "- 'save': I only save it to your vault. I do not read it.\n"
+    "- 'compress' or 'compress 500kb': I shrink the PDF and send it back.\n\n"
+    "Photo — I ONLY resize by default. I never change the background unless you ask.\n"
+    "- 'resize 200x230' : exact pixels. 'compress 50kb' / 'under 100kb': max file size.\n"
+    "- 'photo 3': use notice 3's photo rules (still no background change).\n"
+    "- 'photo 3 blue background' or 'signature 3': full edit — only now I may change the background.\n"
+    "I always show a preview first; reply 'yes' to keep it.\n\n"
     "Ask me things like:\n- What is the last date?\n- Am I eligible?\n- What photo size do I need?\n\n"
-    "Send a photo or signature picture with the caption 'photo 3' or 'signature 3' (3 is your notice number). "
-    "Add a colour like 'photo 3 light blue' or 'photo 3 #e6f0ff'. I will show a preview first.\n\n"
     "Commands: /deadlines  /notices  /use 3  /eligible  /link CODE  /unlink  /help\n\n"
     "Privacy tip: never send passwords or ID numbers in chat."
 )
@@ -26,6 +32,101 @@ HELP = (
 MAX_DOC_BYTES = 5 * 1024 * 1024
 _DOB_RE = re.compile(r"^\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\s*$")
 _COLOUR_RE = re.compile(r"#(?:[0-9a-fA-F]{6})\b|\b(?:light blue|sky blue|dark blue|light grey|light gray|light pink|light green|light yellow|off white|white|blue|grey|gray|cream|pink|beige)\b", re.I)
+_SIZE_RE = re.compile(r"(\d{2,5})\s*[x×]\s*(\d{2,5})", re.I)
+_KB_RE = re.compile(r"(\d{1,5})\s*(kb|mb)\b", re.I)
+
+
+def _kb_from_match(m: re.Match) -> int:
+    value = int(m.group(1))
+    return value * 1024 if m.group(2).lower() == "mb" else value
+
+
+@dataclass
+class ImageIntent:
+    """What the caption asked for. Default: resize only, background untouched."""
+
+    kind: str = "photo_resize"  # photo_resize | photo | signature | document
+    notice_id: int | None = None
+    width: int | None = None
+    height: int | None = None
+    min_kb: int | None = None
+    max_kb: int | None = None
+    background: str | None = None
+    change_background: bool = False
+
+
+def parse_image_intent(caption: str) -> ImageIntent:
+    """Turn a photo caption into explicit instructions.
+
+    The background is changed ONLY when the user names a background/colour or
+    says 'background'. A bare 'photo 3' means 'use notice 3's size/KB rules',
+    never 'repaint my background'.
+    """
+    text = (caption or "").lower()
+    intent = ImageIntent()
+    if re.search(r"\bsign", text):
+        intent.kind = "signature"
+    elif re.search(r"\b(document|certificate|marksheet|scan)\b", text):
+        intent.kind = "document"
+    elif re.search(r"\bphoto\b", text):
+        intent.kind = "photo"  # portal mode (notice size/KB), background still opt-in
+    size = _SIZE_RE.search(text)
+    if size:
+        intent.width, intent.height = int(size.group(1)), int(size.group(2))
+    kbs = [_kb_from_match(m) for m in _KB_RE.finditer(text)]
+    if re.search(r"\b(compress|reduce|shrink|under|max|maximum|below|less than)\b", text) and kbs:
+        intent.max_kb = kbs[-1]
+    elif len(kbs) >= 2:
+        intent.min_kb, intent.max_kb = min(kbs), max(kbs)
+    elif kbs and re.search(r"\b(min|minimum|at least)\b", text):
+        intent.min_kb = kbs[0]
+    colour = _COLOUR_RE.search(caption or "")
+    # Background changes only on an explicit ask: '... blue background' or the
+    # classic portal form 'photo 3 blue'. Never from a bare resize/compress.
+    wants_bg = bool(colour) and ("background" in text or bool(re.search(r"\b(?:photo|signature)\s+#?\d+\s+\S+", text)))
+    if wants_bg:
+        intent.kind = "signature" if intent.kind == "signature" else "photo"
+        intent.background = colour.group(0)
+        intent.change_background = True
+    m = re.search(r"#?(\d+)\b", text)
+    # A leading notice number: 'photo 3', 'signature 3', '3'. Sizes/KB handled above.
+    notice_match = re.search(r"(?:photo|signature|notice|doc(?:ument)?)?\s*#(\d+)\b|\b(?:photo|signature)\s+(\d+)\b", text)
+    if notice_match:
+        intent.notice_id = int(notice_match.group(1) or notice_match.group(2))
+    elif m and not size and not kbs:
+        intent.notice_id = int(m.group(1))
+    return intent
+
+
+@dataclass
+class DocumentIntent:
+    action: str = "notice"  # notice | save | compress
+    max_kb: int | None = None
+
+
+def parse_document_intent(caption: str, filename: str = "", mime: str = "") -> DocumentIntent:
+    """A PDF is a notice ONLY by default/for 'notice' captions.
+
+    'save'/'vault' = store untouched, 'compress ...kb' = shrink and return.
+    Non-PDF documents (images sent as files, text) default to vault save.
+    """
+    text = (caption or "").lower()
+    intent = DocumentIntent()
+    if re.search(r"\b(compress|shrink|reduce)\b", text):
+        intent.action = "compress"
+        kbs = [_kb_from_match(m) for m in _KB_RE.finditer(text)]
+        if kbs:
+            intent.max_kb = kbs[-1]
+        return intent
+    if re.search(r"\b(save|vault|store|keep)\b", text):
+        intent.action = "save"
+        return intent
+    if re.search(r"\bnotice\b", text):
+        intent.action = "notice"
+        return intent
+    is_pdf = mime == "application/pdf" or filename.lower().endswith(".pdf")
+    intent.action = "notice" if is_pdf else "save"
+    return intent
 
 
 def split_text(text: str, limit: int = 1000) -> list[str]:
@@ -139,19 +240,37 @@ class BotCore:
         self.store.clear_state(chat_id, "awaiting_dob")
         return [Reply(f"Saved your date of birth as {dob.strftime('%d/%m/%Y')}. Now send /eligible to check.")]
 
-    # -- documents (notice PDFs) ---------------------------------------------
+    # -- documents (PDFs and files) -------------------------------------------
     def handle_document(self, chat_id: str, data: bytes, filename: str, mime: str, caption: str = "") -> list[Reply]:
         token = self.store.token(chat_id)
         if not token:
             return [Reply(LINK_HELP)]
         if len(data) > MAX_DOC_BYTES:
-            return [Reply("That file is larger than 5 MB. Please send a smaller file.")]
+            return [Reply(f"That file is larger than {MAX_DOC_BYTES // (1024 * 1024)} MB. Please send a smaller file, "
+                          "or compress it on the website first.")]
+        intent = parse_document_intent(caption, filename, mime)
         try:
+            if intent.action == "save":
+                doc = self.backend.upload_document(token, data, filename, mime)
+                return [Reply(f"Saved '{doc.get('filename', filename)}' to your vault. I did not read it as a notice. "
+                              "To read a PDF as a notice, send it with the caption 'notice'.")]
+            if intent.action == "compress":
+                if mime != "application/pdf" and not filename.lower().endswith(".pdf"):
+                    return [Reply("I can only compress PDFs this way. For a photo, send it as a picture with "
+                                  "a caption like 'compress 100kb'.")]
+                result = self.backend.compress_pdf(token, data, filename, intent.max_kb)
+                info = result["report"]
+                head = (f"Compressed: {info['original_kb']} KB → {info['final_kb']} KB ({info['pages']} pages, {info['method']}). "
+                        "Also saved to your vault.")
+                if intent.max_kb and not info["within"]:
+                    head += f"\nI could not reach {intent.max_kb} KB without damaging the pages; this is the smallest safe copy."
+                return [Reply(head), Reply(file=(result["bytes"], result["filename"], result["mime"]))]
             job = self.backend.upload_notice(token, data, filename, mime)
         except BackendError as exc:
             return [self._error(chat_id, exc)]
         self.store.set_state(chat_id, "job_id", str(job["job_id"]))
-        return [Reply("Got it, reading your notice. I will message you when it is ready.")]
+        return [Reply("Got it, reading your notice. I will message you when it is ready. "
+                      "(Tip: caption 'save' = vault only, 'compress 500kb' = shrink the PDF.)")]
 
     def poll_job(self, chat_id: str) -> list[Reply]:
         """Transports call this after handle_document (and may poll). Returns [] until ready."""
@@ -203,19 +322,19 @@ class BotCore:
         token = self.store.token(chat_id)
         if not token:
             return [Reply(LINK_HELP)]
-        kind = "signature" if re.search(r"sign", caption or "", re.I) else "photo"
-        m = re.search(r"#?(\d+)", caption or "")
-        notice_id = int(m.group(1)) if m else None
-        colour = _COLOUR_RE.search(caption or "")
-        background = colour.group(0) if colour else None
+        intent = parse_image_intent(caption)
+        notice_id = intent.notice_id
         try:
-            if notice_id is None:
+            if notice_id is None and (intent.width is None and intent.max_kb is None and intent.kind in ("photo", "signature")):
                 notice_id = self._current_notice(chat_id, token)
                 if notice_id is None and len(self.backend.notices(token)) > 1:
                     notices = self.backend.notices(token)
                     listing = "\n".join(f"#{n['id']} {n['title'][:50]}" for n in notices[:8])
-                    return [Reply(f"Which notice is this for? Send the picture again with a caption like '{kind} {notices[0]['id']}'.\n\n{listing}")]
-            result = self.backend.photo(token, image, kind, notice_id, background)
+                    return [Reply(f"Which notice is this for? Send the picture again with a caption like 'photo {notices[0]['id']}', "
+                                  f"or just say the size, for example 'resize 200x230' or 'compress 50kb'.\n\n{listing}")]
+            result = self.backend.photo(token, image, intent.kind, notice_id, intent.background,
+                                        intent.width, intent.height, intent.min_kb, intent.max_kb,
+                                        intent.change_background)
         except BackendError as exc:
             return [self._error(chat_id, exc)]
         # Preview-then-confirm (plan 4.2): stash the file, send it, final copy on "yes".
@@ -227,7 +346,14 @@ class BotCore:
         report = result["report"]
         lines = [("OK " if c["ok"] else "CHECK ") + f"{c['name']}: {c['detail']}" for c in report["checks"]] + report["warnings"]
         head = "Here is a preview. " + ("It passes the checks. " if report["ok"] else "Please check the items below. ")
-        note = "" if notice_id else "\nNo notice was chosen, so I used default sizes."
+        if intent.change_background:
+            note = ""
+        elif notice_id:
+            note = f"\nUsed notice #{notice_id}'s size/KB rules. Background NOT changed (say e.g. 'photo {notice_id} blue background' to change it)."
+        elif intent.width or intent.max_kb:
+            note = "\nResized only — background NOT changed."
+        else:
+            note = "\nNo size was given, so only the file size was optimised. Background NOT changed. Try 'resize 200x230' or 'compress 50kb'."
         return [Reply(f"{head}{note}\n" + "\n".join(lines) + "\nReply 'yes' to keep it (saved to your vault), or 'no' to discard."),
                 Reply(file=(result["bytes"], result["filename"], result["mime"]))]
 

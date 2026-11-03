@@ -3,13 +3,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
-import { Badge, Card, Empty, ErrorText } from "@/components/ui";
+import { Badge, Card, Empty, ErrorText, fmtDate } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { IngestJob, Notice, NoticeListItem } from "@/lib/types";
+
+const JOB_STEPS = ["Reading", "Checking safety", "Finding key facts", "Ready"];
 
 function Notices() {
   const router = useRouter();
   const [list, setList] = useState<NoticeListItem[]>([]);
+  const [tab, setTab] = useState<"file" | "text">("file");
+  const [filter, setFilter] = useState("");
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,22 +83,38 @@ function Notices() {
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save that result"); }
   }
 
+  const visible = list.filter((n) => !filter || n.title.toLowerCase().includes(filter.toLowerCase()));
+  const stepIdx = job ? (job.status === "ready" ? 3 : job.status === "indexing" ? 2 : job.status === "reading" ? 0 : 0) : -1;
   return (
     <>
       <h1>Notices</h1>
+      <p className="muted">One notice is read once and shared with everyone who uploads the same one. Only public notices here — personal documents belong in your <Link href="/vault">Vault</Link>.</p>
       <Card title="Add a notice">
+        <div className="tabs" role="tablist" aria-label="Add a notice">
+          <button type="button" className={tab === "file" ? "active" : ""} onClick={() => setTab("file")}>Upload file</button>
+          <button type="button" className={tab === "text" ? "active" : ""} onClick={() => setTab("text")}>Paste text</button>
+        </div>
         <form onSubmit={add}>
-          <p><label htmlFor="f">Upload PDF, image or text file</label><input id="f" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></p>
-          <p className="muted small">or paste the notice text</p>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the notification text here" aria-label="Notice text" />
+          {tab === "file" ? (
+            <div className="dropzone">
+              <label htmlFor="f">Drop a PDF, photo or text file, or choose one</label>
+              <input id="f" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <p className="muted small">PDF, photo or text, up to 15 MB. On a phone you can take a photo of the notice. If this notice is already read, you get it instantly.</p>
+              {file && <p className="small">{file.name} · {(file.size / 1024).toFixed(0)} KB</p>}
+            </div>
+          ) : (
+            <p><label htmlFor="paste">Notice text</label><textarea id="paste" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the notification text here" /></p>
+          )}
           <ErrorText error={error} />
-          <p><button disabled={busy || (!file && !text.trim())}>{busy ? "Reading notice..." : "Read this notice"}</button></p>
+          <p><button disabled={busy || (tab === "file" ? !file : !text.trim())}>{busy ? "Reading…" : "Read this notice"}</button>
+            <span className="muted small"> Usually under a minute. You can leave this page — it keeps working.</span></p>
           {job && (
-            <p className="muted" role="status">
-              Background ingest: {job.status}
-              {job.status === "ready" && job.notice_id ? <> — <Link href={`/notices/${job.notice_id}`}>{job.title ?? "open notice"}</Link> {job.summary.join(" · ")}</> : null}
-              {job.status === "failed" ? ` — ${job.error}` : ""}
-            </p>
+            <div role="status">
+              <p className="progress">{job.status === "failed" ? `Could not read it: ${job.error}. Try a clearer photo or paste the text.` : (
+                JOB_STEPS.map((s, i) => <span key={s}>{i > 0 ? " → " : ""}<strong style={{ color: i <= stepIdx ? "var(--primary)" : undefined }}>{s}</strong></span>)
+              )}</p>
+              {job.status === "ready" && job.notice_id ? <p><Link className="btn" href={`/notices/${job.notice_id}`}>Open: {job.title ?? "your notice"}</Link> <span className="muted small">{job.summary.join(" · ")}</span></p> : null}
+            </div>
           )}
         </form>
       </Card>
@@ -109,19 +129,23 @@ function Notices() {
         ))}
       </Card>
       <Card title="Saved notices">
-        {list.length === 0 ? <Empty>No notices yet.</Empty> : (
-          <table>
-            <thead><tr><th>Title</th><th>Last date</th><th>Safety</th></tr></thead>
-            <tbody>
-              {list.map((n) => (
-                <tr key={n.id}>
-                  <td><Link href={`/notices/${n.id}`}>{n.title.slice(0, 80)}</Link></td>
-                  <td>{n.last_date ?? "not found"}</td>
-                  <td><Badge tone={n.scam_level === "high" ? "bad" : n.scam_level === "medium" ? "warn" : "good"}>{n.scam_level ?? "-"}</Badge></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <p><label htmlFor="find">Search your notices</label><input id="find" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Title words…" /></p>
+        {list.length === 0 ? (
+          <Empty action={<Link className="btn" href="/assistant">Ask the assistant what to do first</Link>}>
+            Nothing here yet. Upload your first notice above — we read it and show who can apply, the last date, and whether it looks safe.
+          </Empty>
+        ) : visible.length === 0 ? <Empty>No notice matches “{filter}”.</Empty> : (
+          <ul className="plain">
+            {visible.map((n) => (
+              <li key={n.id}>
+                <Link href={`/notices/${n.id}`}>{n.title.slice(0, 80)}</Link>
+                <div>
+                  <Badge tone={n.scam_level === "high" ? "bad" : n.scam_level === "medium" ? "warn" : "good"}>{n.scam_level === "high" ? "High risk" : n.scam_level === "medium" ? "Check carefully" : "Safe"}</Badge>
+                  <span className="muted small">last date {fmtDate(n.last_date)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </Card>
     </>

@@ -58,6 +58,62 @@ def test_retries_then_raises(monkeypatch):
     assert calls["n"] == 3
 
 
+def test_empty_success_body_is_an_error_not_an_answer():
+    """Regression: Meta returned HTTP 200 with empty content; the app cached '' as a 'saved answer'."""
+
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": ""}}]})
+
+    p = MetaProvider("key123", transport=_transport(handler))
+    with pytest.raises(LLMError, match="empty"):
+        p.chat([{"role": "user", "content": "hi"}])
+
+
+def test_401_surfaces_provider_message():
+    def handler(request):
+        return httpx.Response(401, json={"error": {"code": "invalid_api_key", "message": "Unauthorized"}})
+
+    p = MetaProvider("bad-key", transport=_transport(handler))
+    with pytest.raises(LLMError, match="401.*Unauthorized"):
+        p.chat([{"role": "user", "content": "hi"}])
+
+
+def test_native_tool_calling_wire_format():
+    import json as _json
+
+    seen = {}
+
+    def handler(request):
+        seen["body"] = _json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": None, "tool_calls": [
+            {"id": "1", "type": "function", "function": {"name": "calc_age", "arguments": "{\"dob\": \"2007-03-10\"}"}},
+            {"id": "2", "type": "function", "function": {"name": "calc_days_left", "arguments": "{}"}},
+        ]}}]})
+
+    p = MetaProvider("key123", transport=_transport(handler))
+    out = p.chat_with_tools([{"role": "user", "content": "hi"}],
+                            [{"name": "calc_age", "description": "age", "params": {"dob": "date"}}])
+    assert seen["body"]["tools"][0]["function"]["name"] == "calc_age"
+    assert [c["name"] for c in out["calls"]] == ["calc_age", "calc_days_left"]  # parallel calls preserved
+    assert out["calls"][0]["args"]["dob"] == "2007-03-10"
+
+
+def test_embeddings_only_client_is_allowed():
+    """Regression: embeddings-only client (model='') was rejected, silently forcing hash vectors."""
+    import json as _json
+
+    seen = {}
+
+    def handler(request):
+        seen["body"] = _json.loads(request.content)
+        return httpx.Response(200, json={"data": [{"embedding": [0.1] * 768}]})
+
+    p = OpenAICompatProvider("http://localhost:11434/v1", "ollama", "", embedding_model="nomic-embed-text",
+                             transport=_transport(handler))
+    out = p.embed(["hello"])
+    assert len(out[0]) == 768 and seen["body"]["model"] == "nomic-embed-text"
+
+
 def test_meta_requires_key():
     with pytest.raises(ValueError):
         MetaProvider("")

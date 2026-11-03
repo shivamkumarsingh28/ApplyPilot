@@ -50,14 +50,16 @@ class Settings(BaseSettings):
     openai_compat_model: str = ""
 
     # Embeddings: api | hash (offline fallback)
-    # Meta Model API has NO embeddings endpoint, so embeddings always come from
-    # a separate embedding model served on an OpenAI-compatible endpoint
-    # (EMBEDDING_BASE/EMBEDDING_MODEL), e.g. a hosted multilingual embedder or
-    # Ollama `nomic-embed-text`. Unset -> deterministic hash embedder (offline).
+    # Meta Model API has NO embeddings endpoint (confirmed), so embeddings use a
+    # LOCAL Llama-stack model by default: Ollama `nomic-embed-text` (chosen: free,
+    # private, no Meta tokens). If Ollama/the model is unreachable, ingest falls
+    # back to the deterministic hash embedder — uploads never fail for embeddings.
+    # Set EMBEDDING_MODEL="" to force pure hash, or EMBEDDING_BASE/MODEL to a
+    # hosted multilingual embedder instead.
     embedding_provider: str = "api"
-    embedding_base: str = ""  # empty = reuse the configured LLM endpoint
+    embedding_base: str = ""  # empty = OLLAMA_BASE_URL
     embedding_api_key: str = ""
-    embedding_model: str = ""
+    embedding_model: str = "nomic-embed-text"
 
     # Segmentation: opencv (offline) | meta_sam
     segmenter: str = "opencv"

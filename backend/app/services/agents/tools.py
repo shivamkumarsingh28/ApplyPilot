@@ -36,6 +36,18 @@ class ToolContext:
     notice_id: int | None = None  # the notice the user has open, if any
 
 
+def needs_input(missing: list[str], choices: dict | None = None) -> dict:
+    """Standard 'I need this before I can run' reply (Inventory section 6).
+
+    Not an error: the runner turns it into ONE friendly question for the user,
+    then the agent retries the same tool with the answer.
+    """
+    out: dict = {"needs_input": missing}
+    if choices:
+        out["choices"] = choices
+    return out
+
+
 @dataclass
 class Tool:
     name: str
@@ -43,6 +55,8 @@ class Tool:
     params: dict[str, str]  # parameter name -> short description
     func: Callable[[ToolContext, dict], dict]
     roles: tuple[str, ...] = ("user", "admin")
+    kind: str = "read"  # read | compute | write | destructive | external — inventory section 1
+    confirm: bool = False  # write/destructive: first call returns a proposal, runs only with confirm=true
 
 
 def _visible_notices(ctx: ToolContext) -> list[Notice]:
@@ -86,8 +100,11 @@ def list_notices(ctx: ToolContext, args: dict) -> dict:
 def notice_facts(ctx: ToolContext, args: dict) -> dict:
     n = _notice(ctx, args)
     s = n.structured or {}
-    return {"notice_id": n.id, "title": n.title, "last_date": s.get("last_date"), "age": s.get("age"),
+    return {"notice_id": n.id, "title": n.title, "organisation": s.get("organisation"),
+            "doc_type": s.get("kind") or s.get("doc_type"), "start_date": s.get("start_date"),
+            "last_date": s.get("last_date"), "age": s.get("age"),
             "qualification": s.get("qualification"), "fee": s.get("fee"), "documents": s.get("documents"),
+            "vacancies": s.get("vacancies"), "salary": s.get("salary"), "apply_link": s.get("apply_link"),
             "selection_stages": s.get("selection_stages")}
 
 
@@ -234,6 +251,11 @@ _TOOLS = [
     Tool("calc_fee_total", "Add up fees exactly. Use for any fee total question.", {"notice_id": "number, optional", "fees": "list of amounts, optional"}, calc_fee_total_tool),
     Tool("calc_percentage", "Calculate a percentage from obtained and maximum marks.", {"obtained": "number", "maximum": "number"}, calc_percentage_tool),
 ]
+
+from app.services.agents.tools_extra import EXTRA_TOOLS  # noqa: E402
+from app.services.agents.tools_media import MEDIA_TOOLS  # noqa: E402
+
+_TOOLS = _TOOLS + EXTRA_TOOLS + MEDIA_TOOLS
 TOOLS: dict[str, Tool] = {t.name: t for t in _TOOLS}
 
 
@@ -244,16 +266,38 @@ class ToolCallRecord:
     note: str = ""
 
 
+def propose(tool: Tool, args: dict) -> dict:
+    """Two-step confirmation (Inventory section 3): describe, do not run."""
+    shown = ", ".join(f"{k}={v}" for k, v in args.items() if k != "confirm") or "no inputs"
+    return {"confirmation_required": True, "tool": tool.name,
+            "proposal": f"I will run {tool.name} ({shown}). Reply 'yes' to confirm, or 'no' to cancel. Nothing has been changed yet."}
+
+
 def call_tool(name: str, args: dict, ctx: ToolContext, allowed: set[str]) -> tuple[dict, ToolCallRecord]:
-    """Run one tool with all checks: known tool, on this agent's allow-list, role permitted."""
+    """Run one tool with all checks: known tool, on this agent's allow-list, role permitted,
+    confirmation for write/destructive tools, and an audit + timing line for every call."""
+    import logging
+    import time
+
+    log = logging.getLogger(__name__)
     tool = TOOLS.get(name)
     if tool is None or name not in allowed:
         return {"error": "That tool is not available."}, ToolCallRecord(name, False, "not allowed")
     if ctx.user.role not in tool.roles:
         return {"error": "You do not have permission for that."}, ToolCallRecord(name, False, "role")
-    safe_args = {k: v for k, v in (args or {}).items() if k in tool.params}  # drop unexpected arguments
+    safe_args = {k: v for k, v in (args or {}).items() if k in tool.params or k == "confirm"}
+    if tool.confirm and not safe_args.get("confirm"):
+        return propose(tool, safe_args), ToolCallRecord(name, True, "confirmation_required")
+    t0 = time.perf_counter()
     try:
-        return tool.func(ctx, safe_args), ToolCallRecord(name, True)
+        out = tool.func(ctx, safe_args)
+        ms = round((time.perf_counter() - t0) * 1000)
+        log.info("tool %s ok in %sms kind=%s", name, ms, tool.kind)
+        if tool.kind in ("write", "destructive", "external"):
+            from app.services.audit import audit
+
+            audit(ctx.db, ctx.user.id, f"tool:{name}", kind=tool.kind, ms=ms)
+        return out, ToolCallRecord(name, True)
     except ToolError as exc:
         return {"error": str(exc)}, ToolCallRecord(name, False, "tool_error")
 

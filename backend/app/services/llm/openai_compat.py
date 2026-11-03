@@ -7,6 +7,7 @@ small client covers all three. Meta-specific defaults live in `MetaProvider`.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -22,8 +23,8 @@ class OpenAICompatProvider(LLMProvider):
 
     def __init__(self, base_url: str, api_key: str, model: str, *, timeout: float = 90.0, extra_body: dict | None = None,
                  embedding_model: str = "", vision_model: str = "", transport: httpx.BaseTransport | None = None):
-        if not base_url or not model:
-            raise ValueError("base_url and model are required")
+        if not base_url or not (model or embedding_model):
+            raise ValueError("base_url and a chat or embedding model are required")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.embedding_model = embedding_model
@@ -43,9 +44,19 @@ class OpenAICompatProvider(LLMProvider):
                 if resp.status_code in (429, 500, 502, 503, 504) and attempt < retries:
                     time.sleep(1.5 * (attempt + 1))
                     continue
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    # Surface the provider's own message (e.g. invalid_api_key) — retrying
+                    # a 401 never helps, and hiding it once produced blank answers.
+                    detail = ""
+                    try:
+                        detail = str(resp.json().get("error", {}).get("message") or resp.text[:200])
+                    except ValueError:
+                        detail = resp.text[:200]
+                    raise LLMError(f"model API error {resp.status_code}: {detail}")
                 return resp.json()
-            except (httpx.HTTPError, ValueError) as exc:  # network, status, or bad JSON
+            except LLMError:
+                raise
+            except (httpx.HTTPError, ValueError) as exc:  # network or bad JSON
                 last = exc
                 log.warning("LLM call failed (attempt %s): %s", attempt + 1, exc)
                 if attempt < retries:
@@ -58,10 +69,41 @@ class OpenAICompatProvider(LLMProvider):
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         data = self._post("/chat/completions", payload)
+        if isinstance(data, dict) and data.get("error"):
+            raise LLMError(f"model API error: {data['error']}")
         try:
-            return data["choices"][0]["message"]["content"] or ""
+            content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError(f"unexpected response shape: {exc}") from exc
+        if content is None or (isinstance(content, str) and not content.strip()):
+            # An empty success body is a failure, not an answer. Callers fall back
+            # to extractive answers instead of showing (and caching) a blank.
+            raise LLMError("model returned an empty response")
+        return content
+
+    def chat_with_tools(self, messages, tools):
+        """Native function calling (Meta/OpenAI-compatible). Parallel calls supported."""
+        specs = []
+        for t in tools:
+            props = {k: {"type": "string", "description": v} for k, v in (t.get("params") or {}).items()}
+            specs.append({"type": "function", "function": {"name": t["name"], "description": t["description"],
+                                                           "parameters": {"type": "object", "properties": props}}})
+        data = self._post("/chat/completions", {"model": self.model, "messages": messages, "tools": specs,
+                                                "temperature": 0.0, "max_tokens": 800})
+        try:
+            msg = data["choices"][0]["message"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LLMError(f"unexpected response shape: {exc}") from exc
+        calls = []
+        for c in msg.get("tool_calls") or []:
+            fn = c.get("function") or {}
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except ValueError:
+                args = {}
+            if fn.get("name"):
+                calls.append({"name": fn["name"], "args": args if isinstance(args, dict) else {}})
+        return {"calls": calls, "text": (msg.get("content") or None)}
 
     def vision(self, prompt, images, *, json_mode=False) -> str:
         """Use the dedicated vision model when one is configured (small local models are text-only)."""

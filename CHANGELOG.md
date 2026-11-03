@@ -1,5 +1,58 @@
 # Changelog
 
+## UI/UX Design Spec implementation (unreleased)
+
+Implemented from `docs/Phase_Plan_docs/ApplyPilot_UI_UX_Design_Spec.md` (build order steps 1-10 where the backend supports it):
+
+- **Design system (5.1-5.4):** exact spec tokens as CSS variables (primary #2f5bea, success #157f4b, warning #a15c00…), 16px body, 44px touch targets, radius/shadow per spec, dark theme retained and re-mapped. Components: StatusChip (icon+word, never colour alone), Skeleton, Spinner, Toast+Undo, ConfirmDialog (names the item), Empty states with one action, Citation/verbatim quote styling, checklist, dropzone, tabs, board.
+- **App shell (3):** desktop left sidebar; phone bottom bar (Home, Assistant, Notices, Vault, More sheet); floating Help button opening a per-screen drawer fed by one content file (`lib/helpContent.ts`).
+- **S1 Landing** for signed-out visitors (hero "Stop losing chances to paperwork", problem cards, 4 steps, channels, safety, FAQ). **S6 Home:** greeting, live Setup checklist (4 steps with times, computed from real profile/notices/documents/bot-status), Next-deadline hero, quick actions, applications, recent notices, connect card. **S3 Login:** provider buttons (shown when configured), Show password, live "at least 8 characters" rule.
+- **S7/S8 Notices:** tabbed add (Upload file dropzone / Paste text), named ingest steps (Reading → Checking safety → Finding key facts → Ready), search, safety chips with words. **S9 Notice detail:** tabs Overview (fact cards with page chips + "Found in notice / Please check"), Eligibility (verdict chip, per-check rows, add-missing-field prompt, re-check), Ask (verbatim quotes), Documents (readiness + Fix photo + checklist), Safety.
+- **S10/S8.4 Assistant:** notice selector kept, suggestion chips, "Checked answer" chip, collapsible **How I answered** trace (safety, helper chosen + why, tools used — no private values), thumbs up/down wired to `/assistant/feedback`.
+- **S12 Vault:** grouped by type, copies indented under originals with APP refs, storage bar. **S13 Tracker:** Closing-soon group + List/Board views with status moves. **S14 Profile:** completeness bar for the fields eligibility needs. **S15 Chat apps (new page):** Telegram link-code flow with copy field, 10:00 countdown, auto-poll to Connected, Disconnect (`/bot/status`, `/bot/unlink` added), WhatsApp honest-Experimental card, safety line. **S16 Extension (new page), S17 Settings (new page):** language/share preferences, download-my-data, delete with confirmation dialog (server deletion not yet enabled — stated honestly).
+- **Bug found & fixed while verifying (affected every real user):** Chrome Private Network Access — the website's API calls from localhost were blocked in the browser while curl worked. Fixed with native `allow_private_network` + middleware in `backend/app/main.py`, regression-tested. Also removed 4 orphan profile rows left by an earlier smoke cleanup that 500'd registration.
+- Verified: frontend build clean (13 routes incl. /chat-apps, /extension, /settings), backend 133 tests, and a live phone-viewport walkthrough (landing → register → Home checklist → Help drawer), screenshot-checked.
+
+## Tool Calling Inventory: framework + Priority 1/2 tools (unreleased)
+
+Implemented from `docs/Phase_Plan_docs/ApplyPilot_Tool_Calling_Inventory.md` (audited first: the doc's "9 tools exist" was stale — 14 existed; built what was genuinely missing, unified aliases instead of duplicating, e.g. `notice_facts` kept over `get_notice_facts`).
+
+- **Framework (build step 1):** tools declare `kind` (read/compute/write/destructive/external) + `confirm`; write/destructive tools return a *proposal* first and run only on `confirm=true`; `needs_input` is a normal reply rendered as one friendly question; every call is timed, write/external calls are audit-logged with tool name + ids only; `MAX_STEPS` 3->4; native tool calling added (`chat_with_tools`, parallel calls preserved) with the portable JSON protocol as fallback. Bots get everything free (they call the same assistant).
+- **New tools (25):** get_key_answers, find_in_notice, get_notice_page, get_ingest_status, explain_eligibility_rule (exact quote + page), check_qualification, check_marks, what_if_eligibility (never saves), rank_notices_for_me, get_profile_summary, update_profile_field (confirmed, validated), parse_date_text, validate_contact_fields, record_feedback, set_active_notice, list_documents, get_storage_usage, list_applications, create_application, update_application_status, get_application_checklist, find_duplicate_documents, check_url_trust, find_in_library, link_library_notice, is_public_notice, convert_grade, inspect_image, detect_face, check_photo_quality (blur/brightness/face), parse_color_name, get_image_requirements, prepare_for_notice (recipe; saves a copy, original untouched), make_application_copy, list_application_documents, get_document_info. Registry: 50 tools.
+- **Agents:** 7 agents now (notice, eligibility, tracker, photo, profile, documents, discover), each <=12 tools (<=8 own + 3 shared chat helpers). `notice_facts` now returns organisation/doc_type/vacancies/salary/apply_link too.
+- **Fixes while here:** keyword-router collisions ("documents are missing" -> eligibility not documents; "which notice should I apply first" -> tracker). Tool-choice keyword score is unit-tested.
+- **Deferred (deliberate):** notice versions/corrigenda (foundation feature), reminders/sending tools (need the bot delivery decision), PDF merge/compress tool-pack (pypdf engine work, its own phase), admin-agent tool set, MCP exposure. Each remains catalogue-listed and unblocked by this framework.
+- Verified: 132 backend tests (12 new: registry shape, needs_input, two-step confirmation proving no write happens, what-if purity, foreign-user blindness, per-agent list sizes), ruff clean.
+
+## Photo Studio, professional edition (unreleased)
+
+- **Real-user framing:** portals reject files for pixels, KB range, format and background — and many users want ONLY a resize. The studio is now a mode-based dashboard: **Resize only** (exact pixels/KB/format, colours and background provably untouched — a "Colour untouched" check proves it, with Crop / Fit-with-padding / Stretch shape handling), **Full photo fix** (face crop + background, now with an explicit "keep my original background" switch), **Signature**, and **Document scan** (certificates/marksheets: gentle light/shadow flattening, fit-inside so no edge is ever cut, no face/background logic).
+- Format conversion JPG<->PNG wired through (was silently ignored), notice rules still override, the portal-background rule still wins with a warning.
+- UI: mode cards, common-size presets (Passport 35×45mm, SSC/UPSC 200×230, state portal, signature), px/cm unit toggle (@300dpi), target-KB, before/after with final KB, named vault save (`save_as`) with saved/not-saved state; originals never modified, results save as application copies.
+- Tests: 7 new studio tests (exact pixels, colour-untouched, KB 20–50 exact, PNG bytes, document-mode guarantees, API modes + named save). Full suite 121 green, frontend build clean.
+
+## CRITICAL fix: blank answers from an unauthorized Meta key + poisoned cache (unreleased)
+
+- **Root cause (found live):** the configured `META_API_KEY` is rejected by Meta — HTTP 401 `invalid_api_key`. The provider swallowed the error shape and the app stored the resulting **empty string** in the answer cache, so the notice page replayed a blank answer forever, labelled "saved answer (no model call)", with stray page citations (2, 4, 6) from retrieval. All 7 rows in the dev DB cache were poisoned; **purged**.
+- **Fixes:** (1) the provider now raises `LLMError` on HTTP errors with the provider's own message (401s never retry) and on empty success bodies; (2) empty answers are **never cached**, poisoned rows are deleted on sight, and empty/unverifiable model text falls back to extractive source words; (3) the notice page shows a plain "model returned an empty answer" message instead of a blank; (4) `/health` now live-probes the Meta API (`api_status`, model, embeddings) so a bad key is visible instead of silent.
+- **Action for the owner:** replace `META_API_KEY` in `.env` with a valid key (Meta AI Studio), then check `/api/v1/health` shows `api_status: ok`. Until then the app answers extractively/offline.
+- Verified: backend 114 tests (new regression tests for empty body, 401 surfacing, poisoned-cache replay), ruff clean, frontend build clean. Live `/health`: embeddings `nomic-embed-text`, llm `api_status: error` — exactly the unauthorized-key state.
+
+## Llama embeddings, verbatim answers, notice-page Ask fix (unreleased)
+
+- **Embeddings (confirmed choice):** Meta has no embeddings endpoint, so the default embedding model is now **local Llama-stack Ollama `nomic-embed-text`** (768-dim; one-time `ollama pull nomic-embed-text`). Hash vectors remain the automatic fallback — uploads never fail. Fixed a real bug on the way: the embeddings-only HTTP client was rejected by its own constructor (`model=""`), silently forcing hash vectors forever; also raised `emb-llama` config + `.env.example`, and enabled it in the local `.env`. Live check: fee-question↔fee-text similarity 0.754 (hash: 0.405) vs 0.485 unrelated.
+- **Verbatim answers:** every Ask response now carries `verbatim` — the exact sentence(s) copied from the PDF that support the answer (ranked by the answer's own figures), plus `verified` when every date/number in the answer matches the source. The notice page shows the quote as “exact text, page N”. Unverifiable model answers still become "not found", after one exact-copy retry.
+- **Notice-page Ask fix (the `/notices/{id}` bug):** the whole-notice verifier compared raw digit strings, so a model rewriting `14 November 2026` as `2026-11-14` failed verification → spurious "not found" on the detail page while other paths answered from cache/extractive. Dates/numbers are now normalised (ISO/text/numeric dates, money punctuation) before comparison — regression tests cover reformatted dates and invented ones.
+- **Not-found gate for neural embeddings:** sharper embeddings retrieve *something* for every question; the offline path now also requires a keyword overlap, so off-topic questions (Mars salary) still answer "not found".
+- Verified: backend 111 tests, ruff clean, frontend build clean.
+
+## Dynamic profile fields + custom document types (unreleased)
+
+- **Feasibility verdict:** possible and safe, because the profile is already an encrypted JSON blob — dynamism lives in a governed `extra_fields` list, not in arbitrary keys.
+- Profile: users can add their own fields (text / number / date / dropdown with choices, max 30) on the Profile page. Filled custom values are offered by the form mapper on label-matching form fields, **always flagged for review** — filled, never auto-trusted. Guards: keys cannot shadow built-in fields, sensitive names (Aadhaar/passport/PAN/bank/card/PIN/OTP) are refused with a reason, numbers/dates/options are type-validated, duplicates rejected.
+- Vault: choosing type "other" now allows a free-text type name ("Income Certificate"). Stored as `kind=other + custom_kind` — display and the extension's matcher (which now matches custom names to form-field labels) use it, while readiness/eligibility engine vocabulary is unchanged. Copies preserve it; sensitive names refused.
+- Verified: backend 109 tests (incl. validation/safety/mapping/custom-kind), extension 14 tests, frontend build clean.
+
 ## Extension: in-popup PDF preview (unreleased)
 
 - **Problem:** image previews worked in the popup, but PDF preview opened a new browser tab — the user was dragged away from the half-filled form and lost their place.

@@ -45,6 +45,13 @@
     const kinds = KIND_MATCH[field.kind] || [field.kind];
     const reasons = [];
     let score = -1;
+    // A user-named type ("Income Certificate") matches a field whose label carries
+    // the same words — this is how custom vault types find their field.
+    const custom = String(doc.custom_kind || "").toLowerCase().trim();
+    if (custom && String(field.label || "").toLowerCase().includes(custom)) {
+      reasons.push("your custom type matches this field: " + doc.custom_kind);
+      return { score: 55, reasons };
+    }
     if (doc.kind === field.kind) { score = 50; reasons.push("vault tag matches: " + doc.kind.replace(/_/g, " ")); }
     else if (kinds.includes(doc.kind)) { score = 30; reasons.push("related document: " + String(doc.kind).replace(/_/g, " ")); }
     else if (field.kind === "other") { score = 10; reasons.push("any document (field is generic)"); }

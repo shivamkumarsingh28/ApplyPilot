@@ -128,8 +128,13 @@ function NoticeDetail() {
           {chat.map((m, i) => (
             <div key={i}>
               <div className="msg me">{m.q}</div>
-              <div className="msg">{m.a.answer}</div>
-              {m.a.citations.length > 0 && <p className="muted small">From page{m.a.citations.length > 1 ? "s" : ""} {[...new Set(m.a.citations.map((c) => c.page))].join(", ")}</p>}
+              <div className="msg">{m.a.answer?.trim() ? m.a.answer : "The model returned an empty answer. Please ask again — if this keeps happening, the model API key may be invalid."}</div>
+              {m.a.citations.length > 0 && <p className="muted small">From page{m.a.citations.length > 1 ? "s" : ""} {[...new Set(m.a.citations.map((c) => c.page))].join(", ")}{m.a.verified ? " · ✓ checked against the notice text" : ""}{m.a.cached ? " · saved answer (no model call)" : ""}</p>}
+              {(m.a.verbatim ?? []).map((v, j) => (
+                <blockquote key={j} className="small" style={{ borderLeft: "3px solid #2f5bea", margin: "6px 0", paddingLeft: 8 }}>
+                  “{v.quote}” <span className="muted">— exact text, page {v.page}</span>
+                </blockquote>
+              ))}
             </div>
           ))}
         </div>

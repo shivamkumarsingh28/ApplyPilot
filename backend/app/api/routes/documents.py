@@ -15,9 +15,20 @@ ALLOWED = {"application/pdf", "image/jpeg", "image/png", "image/webp", "text/pla
 
 
 def to_out(d: Document) -> DocumentOut:
-    return DocumentOut(id=d.id, kind=d.kind, filename=d.filename, mime=d.mime, size=d.size, created_at=d.created_at,
+    return DocumentOut(id=d.id, kind=d.kind, custom_kind=d.custom_kind or "", filename=d.filename, mime=d.mime,
+                       size=d.size, created_at=d.created_at,
                        is_original=d.is_original, original_id=d.original_id, application_id=d.application_id,
                        notice_id=d.notice_id, app_ref=d.app_ref or "")
+
+
+SENSITIVE_KIND_WORDS = ("aadhaar", "aadhar", "passport", "pan card", "bank", "card number", "cvv")
+
+
+def _clean_custom_kind(raw: str) -> str:
+    name = " ".join((raw or "").split())[:80]
+    if any(w in name.lower() for w in SENSITIVE_KIND_WORDS):
+        raise HTTPException(422, "That type of document is not stored in the vault.")
+    return name
 
 
 def _quota_check(db: Session, user: User, incoming: int) -> None:
@@ -33,9 +44,10 @@ def _quota_check(db: Session, user: User, incoming: int) -> None:
 
 def store_document(db: Session, user: User, data: bytes, filename: str, mime: str, kind: str,
                    is_original: bool = True, original_id: int | None = None,
-                   application_id: int | None = None, notice_id: int | None = None, app_ref: str = "") -> Document:
+                   application_id: int | None = None, notice_id: int | None = None, app_ref: str = "",
+                   custom_kind: str = "") -> Document:
     _quota_check(db, user, len(data))
-    doc = Document(user_id=user.id, kind=kind, filename=filename[:255], mime=mime, size=len(data),
+    doc = Document(user_id=user.id, kind=kind, custom_kind=custom_kind, filename=filename[:255], mime=mime, size=len(data),
                    storage_path=save_file(user.id, data), is_original=is_original, original_id=original_id,
                    application_id=application_id, notice_id=notice_id, app_ref=app_ref)
     db.add(doc)
@@ -63,9 +75,13 @@ def app_ref_for(db: Session, user: User, notice_id: int | None) -> tuple[int | N
 
 
 @router.post("", response_model=DocumentOut, status_code=201)
-async def upload(file: UploadFile = File(...), kind: str = Form("other"), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def upload(file: UploadFile = File(...), kind: str = Form("other"), custom_kind: str = Form(""),
+                 user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if kind not in DOCUMENT_KINDS:
         raise HTTPException(422, f"kind must be one of {DOCUMENT_KINDS}")
+    # A user-named type ("Income Certificate") is stored as kind=other + custom_kind:
+    # readable everywhere, but readiness/password-style engine logic is unaffected.
+    custom = _clean_custom_kind(custom_kind) if kind == "other" else ""
     if file.content_type not in ALLOWED:
         raise HTTPException(415, "Only PDF, JPEG, PNG, WebP or text files are allowed")
     data = await file.read()
@@ -73,7 +89,7 @@ async def upload(file: UploadFile = File(...), kind: str = Form("other"), user: 
         raise HTTPException(413, "File is larger than 10 MB")
     if not matches_claim(data, file.content_type):
         raise HTTPException(415, "The file content does not match its type")
-    return to_out(store_document(db, user, data, file.filename or "upload", file.content_type, kind))
+    return to_out(store_document(db, user, data, file.filename or "upload", file.content_type, kind, custom_kind=custom))
 
 
 @router.get("", response_model=list[DocumentOut])
@@ -99,7 +115,7 @@ def make_copy(doc_id: int, notice_id: int | None = None, application_id: int | N
     app_id, ref = (application_id, f"APP-{application_id:04d}") if application_id else app_ref_for(db, user, notice_id)
     copy = store_document(db, user, load_file(doc.storage_path), doc.filename, doc.mime, doc.kind,
                           is_original=False, original_id=doc.id, application_id=app_id,
-                          notice_id=notice_id, app_ref=ref)
+                          notice_id=notice_id, app_ref=ref, custom_kind=doc.custom_kind or "")
     return to_out(copy)
 
 

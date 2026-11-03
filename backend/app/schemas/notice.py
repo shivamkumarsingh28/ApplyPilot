@@ -28,7 +28,22 @@ class AskIn(BaseModel):
     question: str = Field(min_length=2, max_length=500)
 
 
+class Citation(BaseModel):
+    page: int
+    text: str = ""
+    score: float = 0.0
+    heading: str = ""
+
+
+class Verbatim(BaseModel):
+    page: int
+    quote: str
+
+
 class AskOut(BaseModel):
     answer: str
     mode: str
-    citations: list[dict]
+    citations: list[Citation] = []
+    verbatim: list[Verbatim] = []
+    verified: bool = False
+    cached: bool = False

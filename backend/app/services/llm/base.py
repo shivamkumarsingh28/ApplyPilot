@@ -45,3 +45,11 @@ class LLMProvider(ABC):
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Return one embedding per text. Providers without embeddings raise NotImplementedError."""
         raise NotImplementedError
+
+    def chat_with_tools(self, messages: list[dict], tools: list[dict]) -> dict:
+        """Native tool calling. Returns {"calls": [{"name","args"}], "text": str|None}.
+
+        Providers without native support raise NotImplementedError; the agent
+        runner then uses its portable JSON protocol, which works everywhere.
+        """
+        raise NotImplementedError
