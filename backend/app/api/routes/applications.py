@@ -82,5 +82,8 @@ def update(app_id: int, body: ApplicationPatch, user: User = Depends(get_current
 @router.delete("/{app_id}", status_code=204)
 def delete(app_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     row = get_owned(db, Application, app_id, user)
+    # Vault copies made for this application keep existing in the vault; only
+    # the link is cleared, otherwise Postgres rejects the delete (FK error).
+    db.query(Document).filter(Document.application_id == row.id).update({"application_id": None}, synchronize_session=False)
     db.delete(row)
     db.commit()

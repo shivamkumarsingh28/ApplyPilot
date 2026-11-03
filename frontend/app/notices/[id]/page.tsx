@@ -143,7 +143,11 @@ function NoticeDetail() {
           <button disabled={busy || !question.trim()}>{busy ? "..." : "Ask"}</button>
         </form>
       </Card>
-      <p><button className="danger" onClick={async () => { await api.del(`/notices/${id}`); router.push("/notices"); }}>Delete notice</button></p>
+      <p><button className="danger" onClick={async () => {
+        if (!window.confirm("Delete this notice? It will be removed from your list. Applications linked to it stay in your tracker.")) return;
+        try { await api.del(`/notices/${id}`); router.push("/notices"); router.refresh(); }
+        catch (err) { setError(err instanceof Error ? err.message : "Could not delete this notice"); }
+      }}>Delete notice</button></p>
     </>
   );
 }

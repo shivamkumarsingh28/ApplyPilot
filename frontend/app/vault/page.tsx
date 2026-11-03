@@ -33,7 +33,8 @@ function Vault() {
     try { await api.del(`/documents/${d.id}`); load(); }
     catch (e) {
       if (confirm(`${e instanceof Error ? e.message : "Has copies."} Delete the original and its copies?`)) {
-        await api.del(`/documents/${d.id}?force=true`); load();
+        try { await api.del(`/documents/${d.id}?force=true`); load(); }
+        catch (err) { setError(err instanceof Error ? err.message : "Delete failed"); }
       }
     }
   }

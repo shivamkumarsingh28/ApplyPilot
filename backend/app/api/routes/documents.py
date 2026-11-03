@@ -130,7 +130,10 @@ def remove(doc_id: int, force: bool = False, user: User = Depends(get_current_us
                                 + ". Delete with ?force=true to remove them too.")
         for c in copies:
             delete_file(c.storage_path)
-            db.delete(c)
+        if copies:
+            # Bulk delete: per-object db.delete() flushes the original before its
+            # copies on Postgres and trips documents_original_id_fkey.
+            db.query(Document).filter(Document.original_id == doc.id).delete(synchronize_session=False)
     delete_file(doc.storage_path)
     db.delete(doc)
     db.commit()

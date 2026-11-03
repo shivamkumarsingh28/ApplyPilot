@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import { Card, ConfirmDialog, ErrorText } from "@/components/ui";
-import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { api, auth } from "@/lib/api";
 import type { Profile } from "@/lib/types";
 
 function Settings() {
+  const router = useRouter();
   const [share, setShare] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("applypilot_share") ?? "ask" : "ask"));
   const [lang, setLang] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("applypilot_lang") ?? "en" : "en"));
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -70,7 +72,11 @@ function Settings() {
         confirmLabel="Delete everything" onCancel={() => setConfirmDelete(false)}
         onConfirm={async () => {
           setConfirmDelete(false);
-          setError("Account deletion is not enabled on this server yet. Contact the admin, or download your data above first.");
+          try {
+            await api.del("/auth/me");
+            auth.clear();
+            router.push("/login");
+          } catch (e) { setError(e instanceof Error ? e.message : "Could not delete your account"); }
         }} />
     </>
   );

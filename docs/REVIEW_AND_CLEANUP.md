@@ -1,5 +1,38 @@
 # Review and Cleanup Report
 
+## Update 2026-11-03 (evening): delete-flow bug hunt
+
+A user reported "Delete notice is not working". Root cause and fixes:
+
+1. **Delete notice crashed (500)** on Postgres: `DELETE /notices/{id}` removed
+   the notice while `ingest_jobs`, `answer_cache`, `documents` and other users'
+   `applications` still referenced it (`ingest_jobs_notice_id_fkey`). SQLite
+   tests never caught it because FK enforcement differs. The route now detaches
+   applications/documents/ingest jobs and clears the answer cache before delete.
+2. **Delete application crashed (500)** the same way when a vault copy had been
+   made for it (`documents.application_id`). Now detached before delete.
+3. **Force-delete vault original crashed (500)**: copies were deleted one by one
+   and the flush removed the original first (`documents_original_id_fkey`).
+   Copies are now bulk-deleted first. Account deletion had the same pattern and
+   was fixed the same way.
+4. **Delete-my-account button was a dead end** ("not enabled on this server
+   yet"). Implemented `DELETE /auth/me` (removes profile, vault files, notices,
+   applications, bot/OAuth links) and wired the Settings button to it.
+5. **Silent UI failures**: notice delete, vault force-delete and tracker
+   remove/status changes swallowed errors (button looked broken). They now show
+   errors and ask for confirmation first.
+
+Verification: 5 new regression tests in `backend/tests/test_delete_flows.py`
+(backend total 144 passed), a 29-check live E2E script against the Docker
+Postgres stack (all pass), and a real browser click-through
+(register -> paste notice -> open -> Delete -> confirm -> list empty).
+Known cosmetic note, not a bug: with an unreachable model API, creating a notice
+takes ~30s while LLM attempts time out before the rule-based fallback answers.
+
+---
+
+# Review and Cleanup Report
+
 Date: 2026-11-03. Scope: judge-ready review of the whole repository before sharing.
 Everything below was verified by running the commands, not by reading alone.
 
