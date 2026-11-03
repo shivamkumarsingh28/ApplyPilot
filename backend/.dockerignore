@@ -1,0 +1,12 @@
+# Backend image only needs app code + requirements; exclude local envs, caches, tests data and secrets.
+.venv
+.venv-*
+__pycache__
+.pytest_cache
+.ruff_cache
+.env
+*.db
+data
+tests
+scripts
+DOCUMENT.md

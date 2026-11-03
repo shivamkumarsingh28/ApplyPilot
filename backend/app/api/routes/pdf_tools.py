@@ -12,12 +12,12 @@ import base64
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.api.routes.documents import store_document
 from app.core.ratelimit import limit
 from app.core.uploads import sniff_mime
 from app.db.models import User
 from app.db.session import get_db
-from app.api.deps import get_current_user
 from app.services.pdf_shrink import compress_pdf
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])

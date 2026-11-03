@@ -1,0 +1,9 @@
+# Bot image only needs the package + requirements; exclude caches, tests and secrets.
+__pycache__
+.pytest_cache
+.env
+*.db
+data
+tests
+DOCUMENT.md
+TELEGRAM_DEMO_GUIDE.md

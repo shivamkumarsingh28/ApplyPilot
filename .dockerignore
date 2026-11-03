@@ -1,0 +1,18 @@
+# Keep Docker build contexts small and prevent local secrets/artifacts leaking into images.
+.git
+.github
+.env
+.env.*
+!.env.example
+**/__pycache__
+**/.venv
+**/.venv-*
+**/.pytest_cache
+**/.ruff_cache
+**/node_modules
+**/.next
+**/*.tsbuildinfo
+**/*.db
+data
+docs
+*.md

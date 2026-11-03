@@ -1,0 +1,9 @@
+# Frontend image rebuilds from source; exclude installed deps, build output and local env files.
+node_modules
+.next
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+DOCUMENT.md
