@@ -37,7 +37,9 @@ class Backend:
     def chat(self, token: str, message: str, notice_id: int | None = None) -> dict:
         return self._send("POST", "/assistant/chat", token, json={"message": message, "notice_id": notice_id})
 
-    def deadlines(self, token: str, days: int = 14) -> list[dict]:
+    def deadlines(self, token: str, days: int = 14, milestones: str = "") -> list[dict]:
+        if milestones:
+            return self._send("GET", f"/applications/upcoming?milestones={milestones}", token)
         return self._send("GET", f"/applications/upcoming?days={days}", token)
 
     def notices(self, token: str) -> list[dict]:

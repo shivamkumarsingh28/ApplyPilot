@@ -47,7 +47,7 @@ function Tracker() {
                   <strong>{r.title.slice(0, 50)}</strong>
                   <div className="muted small">{r.deadline ?? "no date"}</div>
                   {r.days_left !== null && <Badge tone={r.days_left < 0 ? "bad" : r.days_left <= 3 ? "bad" : r.days_left <= 7 ? "warn" : "good"}>{r.days_left < 0 ? "passed" : `${r.days_left} days left`}</Badge>}
-                  <div><select aria-label={`Move ${r.title}`} value={r.status} onChange={async (e) => { await api.patch(`/applications/${r.id}`, { status: e.target.value }); load(); }}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
+                  <div><select aria-label={`Move ${r.title}`} value={r.status} onChange={async (e) => { try { await api.patch(`/applications/${r.id}`, { status: e.target.value }); load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not update"); } }}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
                 </div>
               ))}
               {rows.filter((r) => r.status === st).length === 0 && <p className="muted small">Nothing here.</p>}
@@ -72,8 +72,8 @@ function Tracker() {
               <tr key={r.id}>
                 <td>{r.title.slice(0, 70)}</td>
                 <td>{r.deadline ?? "-"} {r.days_left !== null && <Badge tone={r.days_left < 0 ? "bad" : r.days_left <= 7 ? "warn" : "good"}>{r.days_left < 0 ? "passed" : `${r.days_left}d`}</Badge>}</td>
-                <td><select aria-label="Status" value={r.status} onChange={async (e) => { await api.patch(`/applications/${r.id}`, { status: e.target.value }); load(); }}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></td>
-                <td><button className="danger" onClick={async () => { await api.del(`/applications/${r.id}`); load(); }}>Remove</button></td>
+                <td><select aria-label="Status" value={r.status} onChange={async (e) => { try { await api.patch(`/applications/${r.id}`, { status: e.target.value }); load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not update"); } }}>{STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></td>
+                <td><button className="danger" onClick={async () => { if (!window.confirm(`Remove "${r.title.slice(0, 60)}" from your tracker?`)) return; try { await api.del(`/applications/${r.id}`); load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not remove"); } }}>Remove</button></td>
               </tr>
             ))}</tbody>
           </table>

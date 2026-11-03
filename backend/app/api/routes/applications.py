@@ -52,14 +52,27 @@ def summary(user: User = Depends(get_current_user), db: Session = Depends(get_db
 
 
 @router.get("/upcoming", response_model=list[ApplicationOut])
-def upcoming(days: int = 7, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Open applications whose deadline falls within `days`. The bot uses this for reminders."""
-    limit = date.today() + timedelta(days=days)
-    rows = (db.query(Application)
-            .filter(Application.user_id == user.id, Application.deadline.isnot(None), Application.deadline <= limit,
-                    Application.deadline >= date.today(), Application.status.in_(["planned", "in_progress"]))
-            .order_by(Application.deadline).all())
-    return [to_out(a) for a in rows]
+def upcoming(days: int = 7, milestones: str = "", overdue_days: int = 1,
+             user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Open applications the reminder bot should nudge about.
+
+    With `milestones` (e.g. "7,3,1") only applications whose deadline is exactly
+    that many days away are returned, plus overdue ones (closed <= `overdue_days`
+    ago). Without it, the legacy "within N days" window is used. The bot uses
+    milestones so users get exactly 3 nudges, not one every hour.
+    """
+    today = date.today()
+    base = db.query(Application).filter(
+        Application.user_id == user.id, Application.deadline.isnot(None),
+        Application.status.in_(["planned", "in_progress"]))
+    if milestones.strip():
+        wanted = {int(p) for p in milestones.split(",") if p.strip().lstrip("-").isdigit()}
+        rows = [a for a in base.all()
+                if (a.deadline - today).days in wanted or -overdue_days <= (a.deadline - today).days < 0]
+    else:
+        rows = (base.filter(Application.deadline <= today + timedelta(days=days), Application.deadline >= today)
+                .order_by(Application.deadline).all())
+    return [to_out(a) for a in sorted(rows, key=lambda a: a.deadline)]
 
 
 @router.post("", response_model=ApplicationOut, status_code=201)
@@ -82,5 +95,8 @@ def update(app_id: int, body: ApplicationPatch, user: User = Depends(get_current
 @router.delete("/{app_id}", status_code=204)
 def delete(app_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     row = get_owned(db, Application, app_id, user)
+    # Vault copies made for this application keep existing in the vault; only
+    # the link is cleared, otherwise Postgres rejects the delete (FK error).
+    db.query(Document).filter(Document.application_id == row.id).update({"application_id": None}, synchronize_session=False)
     db.delete(row)
     db.commit()

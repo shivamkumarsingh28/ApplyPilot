@@ -6,11 +6,12 @@ from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.ratelimit import limit
 from app.core.security import create_access_token, hash_password, verify_password
-from app.db.models import OAuthAccount, Profile, User
+from app.db.models import Application, AuditLog, BotLink, Document, IngestJob, Notice, NoticeLink, OAuthAccount, Profile, User
 from app.db.session import get_db
 from app.schemas.auth import LoginIn, RegisterIn, TokenOut, UserOut
 from app.services import oauth as oauth_svc
 from app.services.audit import audit
+from app.services.storage import delete_file
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -92,6 +93,42 @@ def oauth_callback(provider: str, code: str, state: str, request: Request, db: S
     token = create_access_token(user.id)
     # One-time handoff: the page stores the token then clears it from the URL bar.
     return HTMLResponse(f"<script>localStorage.setItem('applypilot_token',{token!r});location.href='/';</script>")
+
+
+@router.delete("/me", status_code=204)
+def delete_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Permanently delete the signed-in account and everything it owns.
+
+    Shared public notices the user first uploaded stay for other users (owner is
+    anonymised to the notice itself by removing the uploader link rows first);
+    owned private notices are deleted with their chunks.
+    """
+    docs = db.query(Document).filter(Document.user_id == user.id).all()
+    for doc in docs:
+        delete_file(doc.storage_path)
+    # Bulk delete (copies reference originals via documents.original_id; ordered
+    # per-object deletes trip that FK on Postgres).
+    db.query(Document).filter(Document.user_id == user.id).delete(synchronize_session=False)
+    db.query(NoticeLink).filter(NoticeLink.user_id == user.id).delete(synchronize_session=False)
+    db.query(BotLink).filter(BotLink.user_id == user.id).delete(synchronize_session=False)
+    db.query(OAuthAccount).filter(OAuthAccount.user_id == user.id).delete(synchronize_session=False)
+    db.query(IngestJob).filter(IngestJob.user_id == user.id).update({"notice_id": None}, synchronize_session=False)
+    db.query(IngestJob).filter(IngestJob.user_id == user.id).delete(synchronize_session=False)
+    db.query(Application).filter(Application.user_id == user.id).delete(synchronize_session=False)
+    # Notices owned by this user: detach everyone else's rows, then delete.
+    owned_ids = [r[0] for r in db.query(Notice.id).filter(Notice.user_id == user.id).all()]
+    if owned_ids:
+        from app.db.models import AnswerCache
+
+        db.query(Application).filter(Application.notice_id.in_(owned_ids)).update({"notice_id": None}, synchronize_session=False)
+        db.query(Document).filter(Document.notice_id.in_(owned_ids)).update({"notice_id": None}, synchronize_session=False)
+        db.query(NoticeLink).filter(NoticeLink.notice_id.in_(owned_ids)).delete(synchronize_session=False)
+        db.query(AnswerCache).filter(AnswerCache.notice_id.in_(owned_ids)).delete(synchronize_session=False)
+        db.query(Notice).filter(Notice.id.in_(owned_ids)).delete(synchronize_session=False)
+    db.query(Profile).filter(Profile.user_id == user.id).delete(synchronize_session=False)
+    db.query(AuditLog).filter(AuditLog.user_id == user.id).update({"user_id": None}, synchronize_session=False)
+    db.delete(user)
+    db.commit()
 
 
 @router.get("/linked")

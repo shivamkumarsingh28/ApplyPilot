@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_visible_notice
 from app.core.ratelimit import limit
 from app.core.uploads import sniff_mime
-from app.db.models import Application, Document, Notice, NoticeLink, User
+from app.db.models import AnswerCache, Application, Document, IngestJob, Notice, NoticeLink, User
 from app.db.session import get_db
 from app.schemas.notice import AskIn, AskOut, NoticeListItem, NoticeOut
 from app.services import rag
@@ -87,9 +87,15 @@ def get_notice(notice_id: int, user: User = Depends(get_current_user), db: Sessi
 @router.delete("/{notice_id}", status_code=204)
 def delete_notice(notice_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     notice = get_visible_notice(db, notice_id, user)
-    db.query(Application).filter(Application.user_id == user.id, Application.notice_id == notice.id).update({"notice_id": None})
+    # Every row that references this notice must be detached or removed first,
+    # otherwise Postgres rejects the delete with a foreign-key error (500).
+    # Applications and vault copies keep existing, just unlinked from the notice.
+    db.query(Application).filter(Application.notice_id == notice.id).update({"notice_id": None}, synchronize_session=False)
+    db.query(Document).filter(Document.notice_id == notice.id).update({"notice_id": None}, synchronize_session=False)
+    db.query(IngestJob).filter(IngestJob.notice_id == notice.id).update({"notice_id": None}, synchronize_session=False)
+    db.query(AnswerCache).filter(AnswerCache.notice_id == notice.id).delete(synchronize_session=False)
     if notice.user_id == user.id:
-        db.delete(notice)  # owner deleting removes the shared copy for everyone
+        db.delete(notice)  # owner deleting removes the shared copy (chunks/links cascade) for everyone
     else:
         db.query(NoticeLink).filter(NoticeLink.notice_id == notice.id, NoticeLink.user_id == user.id).delete()
     db.commit()
